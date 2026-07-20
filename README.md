@@ -33,9 +33,9 @@ The API will be available at `http://localhost:3000`
 - `POST /signup` - Register a new user (with bcrypt password hashing)
 - `POST /login` - Login with username and password (with bcrypt verification)
 - `GET /getRandomChar` - Get a random character
-- `POST /createChart` - Create a new character (with stats validation)
-- `GET /getChar?PlayerID=ID` - Get character by ID
-- `POST /updateChart` - Update character stats (with owner permission check)
+- `POST /createCharacter` - Create a new character (with stats validation)
+- `GET /getChar?characterId=ID` - Get character by ID
+- `POST /updateCharacter` - Update character stats (with owner permission check)
 
 ## Dependencies
 

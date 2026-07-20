@@ -30,42 +30,37 @@ const validateCredentials = (username, password) => {
     return { valid: true };
 };
 
-const validateCharacterStats = (atk, int, vida) => {
+const validateCharacterStats = (atk, intelligence, health) => {
     if (typeof atk !== 'number' || atk < 0 || atk > 100) {
         return { valid: false, message: 'ATK must be a number between 0 and 100' };
     }
-    if (typeof int !== 'number' || int < 0 || int > 100) {
+    if (typeof intelligence !== 'number' || intelligence < 0 || intelligence > 100) {
         return { valid: false, message: 'INT must be a number between 0 and 100' };
     }
-    if (typeof vida !== 'number' || vida < 1 || vida > 500) {
-        return { valid: false, message: 'VIDA (HEALTH) must be a number between 1 and 500' };
+    if (typeof health !== 'number' || health < 1 || health > 500) {
+        return { valid: false, message: 'Health must be a number between 1 and 500' };
     }
     return { valid: true };
 };
 
 // ==================== AUTHENTICATION ====================
 
-// Registration with password hash (bcrypt)
 app.post('/signup', async (req, res, next) => {
     try {
         const { username, password } = req.body;
 
-        // Validation
         const credCheck = validateCredentials(username, password);
         if (!credCheck.valid) {
             return res.status(400).json({ success: false, message: credCheck.message });
         }
 
-        // Checks for duplicates (Status code 409)
         const existingUser = users.find(u => u.username === username);
         if (existingUser) {
             return res.status(409).json({ success: false, message: 'The user already exists' });
         }
 
-        // Password hash
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Unique ID using crypto
         const newUser = {
             id: crypto.randomUUID(),
             username,
@@ -85,19 +80,16 @@ app.post('/signup', async (req, res, next) => {
     }
 });
 
-// Login with hash verification
 app.post('/login', async (req, res, next) => {
     try {
         const { username, password } = req.body;
 
-        // Validation
         if (!username || !password) {
             return res.status(400).json({ success: false, message: 'Username and password are required' });
         }
 
         const user = users.find(u => u.username === username);
 
-        // If it cannot be found or the password does not match
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
@@ -118,14 +110,13 @@ app.post('/login', async (req, res, next) => {
 app.get('/getRandomChar', (req, res, next) => {
     try {
         if (characters.length === 0) {
-            // Default NPC
             const randomChar = {
                 id: 'monster_1',
                 name: 'Dragon',
                 atk: Math.floor(Math.random() * 20) + 10,
-                int: Math.floor(Math.random() * 20) + 10,
-                vida: Math.floor(Math.random() * 50) + 50,
-                isMonster: 'true',
+                intelligence: Math.floor(Math.random() * 20) + 10,
+                health: Math.floor(Math.random() * 50) + 50,
+                isMonster: true,
                 img: 'dragon.png',
                 idPlayer: 'npc'
             };
@@ -139,33 +130,30 @@ app.get('/getRandomChar', (req, res, next) => {
     }
 });
 
-app.post('/createChart', async (req, res, next) => {
+app.post('/createCharacter', async (req, res, next) => {
     try {
-        const { name, atk, int, vida, username, password, isMonster } = req.body;
+        const { name, atk, intelligence, health, username, password, isMonster } = req.body;
 
-        // Check credentials first
         const user = users.find(u => u.username === username);
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        // Check the character's stats
         if (!name || name.trim().length < 2) {
             return res.status(400).json({ success: false, message: 'Name must have at least 2 characters' });
         }
-        const statsCheck = validateCharacterStats(atk, int, vida);
+        const statsCheck = validateCharacterStats(atk, intelligence, health);
         if (!statsCheck.valid) {
             return res.status(400).json({ success: false, message: statsCheck.message });
         }
 
-        // Generate unique ID
         const newChar = {
             id: crypto.randomUUID(),
             name: name.trim(),
             atk,
-            int,
-            vida,
-            isMonster: isMonster || 'false',
+            intelligence,
+            health,
+            isMonster: Boolean(isMonster),
             img: 'hero.png',
             idPlayer: user.id
         };
@@ -184,13 +172,13 @@ app.post('/createChart', async (req, res, next) => {
 
 app.get('/getChar', (req, res, next) => {
     try {
-        const PlayerID = req.query.PlayerID;
+        const characterId = req.query.characterId;
 
-        if (!PlayerID) {
-            return res.status(400).json({ success: false, message: 'PlayerID is required' });
+        if (!characterId) {
+            return res.status(400).json({ success: false, message: 'characterId is required' });
         }
 
-        const character = characters.find(c => c.id === PlayerID);
+        const character = characters.find(c => c.id === characterId);
 
         if (!character) {
             return res.status(404).json({ success: false, message: 'Character not found' });
@@ -202,47 +190,42 @@ app.get('/getChar', (req, res, next) => {
     }
 });
 
-app.post('/updateChart', async (req, res, next) => {
+app.post('/updateCharacter', async (req, res, next) => {
     try {
-        const { idChar, name, atk, int, vida, username, password, isMonster } = req.body;
+        const { characterId, name, atk, intelligence, health, username, password } = req.body;
 
-        // Check credentials
         const user = users.find(u => u.username === username);
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        // Validate input data
-        if (!idChar) {
-            return res.status(400).json({ success: false, message: 'idChar is required' });
+        if (!characterId) {
+            return res.status(400).json({ success: false, message: 'characterId is required' });
         }
         if (!name || name.trim().length < 2) {
             return res.status(400).json({ success: false, message: 'Name must have at least 2 characters' });
         }
-        const statsCheck = validateCharacterStats(atk, int, vida);
+        const statsCheck = validateCharacterStats(atk, intelligence, health);
         if (!statsCheck.valid) {
             return res.status(400).json({ success: false, message: statsCheck.message });
         }
 
-        // Search the character
-        const charIndex = characters.findIndex(c => c.id === idChar);
+        const charIndex = characters.findIndex(c => c.id === characterId);
 
         if (charIndex === -1) {
             return res.status(404).json({ success: false, message: 'Character not found' });
         }
 
-        // Checks whether the character belongs to the authenticated user
         if (characters[charIndex].idPlayer !== user.id) {
             return res.status(403).json({ success: false, message: 'You do not have permission to edit this character' });
         }
 
-        // Updates
         characters[charIndex] = {
             ...characters[charIndex],
             name: name.trim(),
             atk,
-            int,
-            vida
+            intelligence,
+            health
         };
 
         res.status(200).json({
@@ -257,7 +240,6 @@ app.post('/updateChart', async (req, res, next) => {
 
 // ==================== GLOBAL ERROR MIDDLEWARE ====================
 
-// This middleware captures any error that has been passed with next(error)
 app.use((err, req, res, next) => {
     console.error('Internal error:', err.stack || err.message);
 
@@ -271,11 +253,11 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
     console.log(`API running at http://localhost:${PORT}`);
-    console.log(`Available endpoints (improved version):`);
-    console.log(`   POST http://localhost:${PORT}/signup   (with bcrypt + validation)`);
-    console.log(`   POST http://localhost:${PORT}/login    (with bcrypt)`);
+    console.log(`Available endpoints:`);
+    console.log(`   POST http://localhost:${PORT}/signup`);
+    console.log(`   POST http://localhost:${PORT}/login`);
     console.log(`   GET  http://localhost:${PORT}/getRandomChar`);
-    console.log(`   POST http://localhost:${PORT}/createChart (with stats validation)`);
-    console.log(`   GET  http://localhost:${PORT}/getChar?PlayerID=ID`);
-    console.log(`   POST http://localhost:${PORT}/updateChart (with owner permission check)`);
+    console.log(`   POST http://localhost:${PORT}/createCharacter`);
+    console.log(`   GET  http://localhost:${PORT}/getChar?characterId=ID`);
+    console.log(`   POST http://localhost:${PORT}/updateCharacter`);
 });
