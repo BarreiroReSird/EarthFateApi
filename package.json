@@ -4,6 +4,8 @@
   "description": "This repository will provide the API for an older project that lost access to the API it previously used.",
   "main": "API/server.js",
   "scripts": {
+    "start": "node API/server.js",
+    "dev": "nodemon API/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -20,8 +22,10 @@
   "homepage": "https://github.com/BarreiroReSird/EarthFateApi#readme",
   "dependencies": {
     "bcrypt": "^6.0.0",
-    "body-parser": "^2.3.0",
     "cors": "^2.8.6",
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }
