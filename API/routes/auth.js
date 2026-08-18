@@ -15,7 +15,7 @@ router.post('/signup', async (req, res, next) => {
             return res.status(400).json({ success: false, message: credCheck.message });
         }
 
-        const existingUser = users.find(u => u.username === username);
+        const existingUser = users.find((u) => u.username === username);
         if (existingUser) {
             return res.status(409).json({ success: false, message: 'The user already exists' });
         }
@@ -25,7 +25,7 @@ router.post('/signup', async (req, res, next) => {
         const newUser = {
             id: crypto.randomUUID(),
             username,
-            password: hashedPassword
+            password: hashedPassword,
         };
 
         users.push(newUser);
@@ -34,7 +34,7 @@ router.post('/signup', async (req, res, next) => {
             success: true,
             message: 'Registration successful',
             userId: newUser.id,
-            username: newUser.username
+            username: newUser.username,
         });
     } catch (error) {
         next(error);
@@ -46,10 +46,12 @@ router.post('/login', async (req, res, next) => {
         const { username, password } = req.body;
 
         if (!username || !password) {
-            return res.status(400).json({ success: false, message: 'Username and password are required' });
+            return res
+                .status(400)
+                .json({ success: false, message: 'Username and password are required' });
         }
 
-        const user = users.find(u => u.username === username);
+        const user = users.find((u) => u.username === username);
 
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -59,7 +61,7 @@ router.post('/login', async (req, res, next) => {
             success: true,
             message: 'Login successful',
             userId: user.id,
-            username: user.username
+            username: user.username,
         });
     } catch (error) {
         next(error);

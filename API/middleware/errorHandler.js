@@ -1,8 +1,8 @@
-module.exports = (err, req, res, next) => {
+module.exports = (err, req, res, _next) => {
     console.error('Internal error:', err.stack || err.message);
 
     res.status(500).json({
         success: false,
-        message: 'An internal error occurred, please try again later'
+        message: 'An internal error occurred, please try again later',
     });
 };

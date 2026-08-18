@@ -38,6 +38,20 @@ npm run dev
 
 The API will be available at `http://localhost:3000`
 
+### Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm start` | Run the API |
+| `npm run dev` | Run with auto-restart (nodemon) |
+| `npm run lint` | Check for code errors |
+| `npm run lint:fix` | Fix code errors automatically |
+| `npm run format` | Format all code |
+| `npm run format:check` | Check if code is formatted |
+| `npm test` | Run all tests |
+| `npm run test:watch` | Run tests and re-run on changes |
+| `npm run test:coverage` | Run tests with coverage report |
+
 ---
 
 ## Quick Test (30 seconds)
@@ -100,6 +114,9 @@ API/
 ## Dev Dependencies
 
 - nodemon - Auto restarts the server during development
+- eslint - Code linting
+- prettier - Code formatting
+- jest - Testing framework
 
 ---
 
@@ -107,8 +124,11 @@ API/
 
 - [DONE] Environment setup and basic API with all endpoints
 - [DONE] Refactor to layered structure (routes, utils, middleware) - clean separation of concerns
+- [DONE] Add environment variable template (.env.example)
+- [DONE] Setup ESLint + Prettier for code quality
+- [DONE] Add unit tests for validators (Jest)
+- [TODO] Implement JWT authentication
 - [TODO] Implement data persistence (replace in memory storage with a file/database)
-- [TODO] Add unit and integration tests
 - [TODO] API documentation (Swagger/OpenAPI)
 - [TODO] Angular integration
 - [TODO] Deployment

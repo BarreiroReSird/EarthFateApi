@@ -6,7 +6,13 @@
   "scripts": {
     "start": "node API/server.js",
     "dev": "nodemon API/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "eslint API/",
+    "lint:fix": "eslint API/ --fix",
+    "format": "prettier --write \"API/**/*.js\"",
+    "format:check": "prettier --check \"API/**/*.js\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "repository": {
     "type": "git",
@@ -26,6 +32,11 @@
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.0",
+    "prettier": "^3.9.6"
   }
 }
