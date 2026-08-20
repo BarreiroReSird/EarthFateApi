@@ -15,8 +15,9 @@ The goal is to rebuild a clean, maintainable backend for that game and keep it u
 ## Setup
 
 ### Prerequisites
-- Node.js (v14 or higher)
+- Node.js (v18 or higher)
 - npm
+- A Supabase project (free tier works)
 
 ### Installation
 
@@ -37,6 +38,22 @@ npm run dev
 ```
 
 The API will be available at `http://localhost:3000`
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and fill in:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Server port (default: 3000) |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_KEY` | Your Supabase anon/public key |
+
+Get these from **Supabase Dashboard > Settings > API**.
 
 ### Available Scripts
 
@@ -89,7 +106,8 @@ API/
 │   ├── auth.js               # /signup and /login endpoints
 │   └── characters.js         # Character related endpoints (4 endpoints)
 ├── utils/
-│   ├── store.js              # In memory data storage (users and characters arrays)
+│   ├── supabase.js           # Supabase client connection
+│   ├── store.js              # Database operations (users and characters)
 │   └── validators.js         # Input validation functions (credentials and character stats)
 └── middleware/
     └── errorHandler.js       # Global error handling middleware
@@ -102,6 +120,8 @@ API/
 - express - Web framework
 - cors - Cross origin resource sharing
 - bcrypt - Password hashing
+- @supabase/supabase-js - Supabase client for database access
+- dotenv - Load environment variables from .env
 
 ## Dev Dependencies
 
@@ -117,6 +137,7 @@ API/
 - User registration and login with bcrypt password hashing
 - Character CRUD (create, read, update) with input validation
 - Owner permission checks on character edits
+- Persistent data storage with Supabase (PostgreSQL)
 - Layered project structure (routes / utils / middleware)
 - ESLint + Prettier for code quality
 - Unit tests for validators (Jest)
@@ -125,7 +146,6 @@ API/
 ## What's Next
 
 - Proper authentication (JWT tokens)
-- Data persistence (database)
 - API documentation (Swagger/OpenAPI)
 - Frontend integration (Angular)
 - Production deployment

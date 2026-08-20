@@ -4,7 +4,6 @@ Things I still need to do, roughly ordered by importance. Checkboxes get ticked 
 
 ## Features and fixes
 
-- [ ] Persistent storage (database)
 - [ ] Arrays are slow for lookups, switch to Maps
 - [ ] Node.js version in README said v14, should be v18+
 - [ ] Express 5 handles async errors automatically, the try/catch blocks are redundant

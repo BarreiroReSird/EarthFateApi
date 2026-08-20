@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
-const { users } = require('../utils/store');
+const { findUserByUsername, createUser } = require('../utils/store');
 const { validateCredentials } = require('../utils/validators');
 
 const router = express.Router();
@@ -15,20 +15,18 @@ router.post('/signup', async (req, res, next) => {
             return res.status(400).json({ success: false, message: credCheck.message });
         }
 
-        const existingUser = users.find((u) => u.username === username);
+        const existingUser = await findUserByUsername(username);
         if (existingUser) {
             return res.status(409).json({ success: false, message: 'The user already exists' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newUser = {
+        const newUser = await createUser({
             id: crypto.randomUUID(),
             username,
             password: hashedPassword,
-        };
-
-        users.push(newUser);
+        });
 
         res.status(201).json({
             success: true,
@@ -51,7 +49,7 @@ router.post('/login', async (req, res, next) => {
                 .json({ success: false, message: 'Username and password are required' });
         }
 
-        const user = users.find((u) => u.username === username);
+        const user = await findUserByUsername(username);
 
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
