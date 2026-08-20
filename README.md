@@ -44,35 +44,27 @@ The API will be available at `http://localhost:3000`
 |---------|-------------|
 | `npm start` | Run the API |
 | `npm run dev` | Run with auto-restart (nodemon) |
-| `npm run lint` | Check for code errors |
-| `npm run lint:fix` | Fix code errors automatically |
-| `npm run format` | Format all code |
-| `npm run format:check` | Check if code is formatted |
 | `npm test` | Run all tests |
-| `npm run test:watch` | Run tests and re-run on changes |
-| `npm run test:coverage` | Run tests with coverage report |
 
 ---
 
 ## Quick Test (30 seconds)
 
-After starting the API with `npm start`, open a PowerShell terminal and run these commands to see it working:
+After starting the API with `npm start`, open a terminal and run these commands **in order** (step 1 must be done before step 3):
 
 **1. Register a test user:**
-```powershell
-$body = @{ username = "testuser"; password = "123456" } | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:3000/signup" -Method Post -Body $body -ContentType "application/json"
+```bash
+curl -X POST http://localhost:3000/signup -H "Content-Type: application/json" -d '{"username":"testuser","password":"123456"}'
 ```
 
 **2. Get the default Dragon character (GET endpoint works in browser too):**
-```powershell
-Invoke-RestMethod -Uri "http://localhost:3000/getRandomChar" -Method Get
+```bash
+curl http://localhost:3000/getRandomChar
 ```
 
 **3. Create your first hero character:**
-```powershell
-$body = @{ name = "Conan"; atk = 60; intelligence = 40; health = 250; username = "testuser"; password = "123456" } | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:3000/createCharacter" -Method Post -Body $body -ContentType "application/json"
+```bash
+curl -X POST http://localhost:3000/createCharacter -H "Content-Type: application/json" -d '{"name":"Conan","atk":60,"intelligence":40,"health":250,"username":"testuser","password":"123456"}'
 ```
 
 ---
