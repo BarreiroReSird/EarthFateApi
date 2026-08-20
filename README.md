@@ -112,37 +112,20 @@ API/
 
 ---
 
-## Roadmap
+## What's Been Built
 
-- [DONE] Environment setup and basic API with all endpoints
-- [DONE] Refactor to layered structure (routes, utils, middleware) - clean separation of concerns
-- [DONE] Add environment variable template (.env.example)
-- [DONE] Setup ESLint + Prettier for code quality
-- [DONE] Add unit tests for validators (Jest)
-- [TODO] Implement JWT authentication
-- [TODO] Implement data persistence (replace in memory storage with a file/database)
-- [TODO] API documentation (Swagger/OpenAPI)
-- [TODO] Angular integration
-- [TODO] Deployment
+- User registration and login with bcrypt password hashing
+- Character CRUD (create, read, update) with input validation
+- Owner permission checks on character edits
+- Layered project structure (routes / utils / middleware)
+- ESLint + Prettier for code quality
+- Unit tests for validators (Jest)
+- Environment variable template (.env.example)
 
----
+## What's Next
 
-## Current Limitations (Known Trade offs)
-
-This is a work in progress project. I chose to keep things simple first and build incrementally.
-Here are the next things to improve:
-
-- **No JWT auth yet:** `/createCharacter` and `/updateCharacter` receive the raw password in each request. Will be fixed with JWT tokens in a future update.
-- **In memory storage only:** Data is lost when the server stops. Persistence (file based or database) is the next roadmap item.
-- **No rate limiting or brute force protection** on authentication endpoints.
-
----
-
-## Development Notes
-
-The current implementation uses in memory storage (data is lost when the server stops). Data persistence will be added in the next phase.
-
-The code is organized into a simple 3 layer structure (routes / utils / middleware), chosen to keep the project easy to understand while maintaining a clean separation of concerns:
-- Routes deal with HTTP requests and responses
-- Validators and storage are reusable and independent of Express
-- The entry file (`server.js`) stays small and focused on setup only
+- Proper authentication (JWT tokens)
+- Data persistence (database)
+- API documentation (Swagger/OpenAPI)
+- Frontend integration (Angular)
+- Production deployment
