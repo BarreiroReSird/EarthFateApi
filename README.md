@@ -64,7 +64,9 @@ Get these from **Supabase Dashboard > Settings > API**.
 |---------|-------------|
 | `npm start` | Run the API |
 | `npm run dev` | Run with auto-restart (nodemon) |
-| `npm test` | Run all tests |
+| `npm test` | Run all unit tests with Jest |
+| `npm run lint` | Run ESLint check |
+| `npm run format` | Auto-format code with Prettier |
 
 ---
 
@@ -104,14 +106,18 @@ curl -X POST http://localhost:3000/createCharacter -H "Content-Type: application
 
 ```
 API/
+├── config/
+│   └── index.js              # Central application configuration & environmental constants
 ├── server.js                 # Entry point: initializes Express, rate limiter, routes and middleware
 ├── routes/
 │   ├── auth.js               # /signup and /login endpoints with JWT generation
 │   └── characters.js         # Character endpoints (protected via authMiddleware)
 ├── utils/
+│   ├── logger.js             # Structured logging utility
 │   ├── supabase.js           # Supabase client connection
 │   ├── store.js              # Database operations (users and characters)
-│   └── validators.js         # Input validation functions (credentials and character stats)
+│   ├── validators.js         # Input validation functions (credentials, names, stats)
+│   └── validators.test.js    # Unit tests for input validators
 └── middleware/
     ├── authMiddleware.js     # JWT Bearer token authentication middleware
     └── errorHandler.js       # Global error handling middleware
@@ -123,6 +129,7 @@ API/
 
 - express - Web framework
 - cors - Cross origin resource sharing
+- compression - Response payload compression
 - bcrypt - Password hashing
 - jsonwebtoken - JWT token authentication
 - express-rate-limit - Rate limiting for API endpoints
@@ -140,14 +147,18 @@ API/
 
 ## What's Been Built
 
+- Central configuration module (`API/config/index.js`) for application constants
+- Structured logger utility (`API/utils/logger.js`)
+- Response compression middleware (`compression`)
 - User registration and login with bcrypt password hashing and JWT token authentication
 - Dedicated `authMiddleware` for protecting endpoints via HTTP Bearer tokens
 - Rate limiting on authentication endpoints to prevent brute-force attacks
 - Payload size limiting (10kb) to prevent DoS attacks
-- Character CRUD (create, read, update) with input validation
+- Character CRUD (create, read, update) with deduplicated input validation
+- Optimized database pagination for random character generation
 - Owner permission checks on character edits
 - Persistent data storage with Supabase (PostgreSQL)
-- Layered project structure (routes / utils / middleware)
+- Layered project structure (config / routes / utils / middleware)
 - ESLint + Prettier for code quality
 - Unit tests for validators (Jest)
 - Environment variable configuration (.env and .env.example)
@@ -158,3 +169,4 @@ API/
 - API documentation (Swagger/OpenAPI)
 - Frontend integration (Angular)
 - Production deployment
+

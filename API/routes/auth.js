@@ -2,13 +2,11 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET, JWT_EXPIRES_IN, BCRYPT_SALT_ROUNDS } = require('../config');
 const { findUserByUsername, createUser } = require('../utils/store');
 const { validateCredentials } = require('../utils/validators');
 
 const router = express.Router();
-
-const getSecret = () => process.env.JWT_SECRET || 'super_secret_earth_fate_key_change_in_production';
-const getSaltRounds = () => parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10;
 
 router.post('/signup', async (req, res, next) => {
     try {
@@ -24,7 +22,7 @@ router.post('/signup', async (req, res, next) => {
             return res.status(409).json({ success: false, message: 'User already exists' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, getSaltRounds());
+        const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
         const newUser = await createUser({
             id: crypto.randomUUID(),
@@ -32,11 +30,9 @@ router.post('/signup', async (req, res, next) => {
             password: hashedPassword,
         });
 
-        const token = jwt.sign(
-            { id: newUser.id, username: newUser.username },
-            getSecret(),
-            { expiresIn: '24h' }
-        );
+        const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET, {
+            expiresIn: JWT_EXPIRES_IN,
+        });
 
         res.status(201).json({
             success: true,
@@ -65,11 +61,9 @@ router.post('/login', async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        const token = jwt.sign(
-            { id: user.id, username: user.username },
-            getSecret(),
-            { expiresIn: '24h' }
-        );
+        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
+            expiresIn: JWT_EXPIRES_IN,
+        });
 
         res.status(200).json({
             success: true,

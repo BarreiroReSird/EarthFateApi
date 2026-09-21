@@ -1,13 +1,14 @@
 const express = require('express');
 const crypto = require('crypto');
 const authMiddleware = require('../middleware/authMiddleware');
+const { DEFAULT_MONSTER } = require('../config');
 const {
     findCharacter,
     getRandomCharacter,
     createCharacter,
     updateCharacter,
 } = require('../utils/store');
-const { validateCharacterStats } = require('../utils/validators');
+const { validateCharacterName, validateCharacterStats } = require('../utils/validators');
 
 const router = express.Router();
 
@@ -16,17 +17,7 @@ router.get('/getRandomChar', async (req, res, next) => {
         const character = await getRandomCharacter();
 
         if (!character) {
-            const randomChar = {
-                id: 'monster_1',
-                name: 'Dragon',
-                atk: Math.floor(Math.random() * 20) + 10,
-                intelligence: Math.floor(Math.random() * 20) + 10,
-                health: Math.floor(Math.random() * 50) + 50,
-                isMonster: true,
-                img: 'dragon.png',
-                idPlayer: 'npc',
-            };
-            return res.status(200).json(randomChar);
+            return res.status(200).json(DEFAULT_MONSTER);
         }
 
         res.status(200).json(character);
@@ -40,11 +31,11 @@ router.post('/createCharacter', authMiddleware, async (req, res, next) => {
         const { name, atk, intelligence, health, isMonster } = req.body;
         const userId = req.user.id;
 
-        if (!name || typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 30) {
-            return res
-                .status(400)
-                .json({ success: false, message: 'Name must be between 2 and 30 characters' });
+        const nameCheck = validateCharacterName(name);
+        if (!nameCheck.valid) {
+            return res.status(400).json({ success: false, message: nameCheck.message });
         }
+
         const statsCheck = validateCharacterStats(atk, intelligence, health);
         if (!statsCheck.valid) {
             return res.status(400).json({ success: false, message: statsCheck.message });
@@ -99,11 +90,12 @@ router.post('/updateCharacter', authMiddleware, async (req, res, next) => {
         if (!characterId) {
             return res.status(400).json({ success: false, message: 'characterId is required' });
         }
-        if (!name || typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 30) {
-            return res
-                .status(400)
-                .json({ success: false, message: 'Name must be between 2 and 30 characters' });
+
+        const nameCheck = validateCharacterName(name);
+        if (!nameCheck.valid) {
+            return res.status(400).json({ success: false, message: nameCheck.message });
         }
+
         const statsCheck = validateCharacterStats(atk, intelligence, health);
         if (!statsCheck.valid) {
             return res.status(400).json({ success: false, message: statsCheck.message });

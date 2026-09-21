@@ -18,32 +18,33 @@ async function createUser(user) {
 }
 
 async function findCharacter(id) {
-    const { data, error } = await supabase
-        .from('characters')
-        .select('*')
-        .eq('id', id)
-        .single();
+    const { data, error } = await supabase.from('characters').select('*').eq('id', id).single();
 
     if (error && error.code !== 'PGRST116') throw error;
     return data;
 }
 
 async function getRandomCharacter() {
-    const { data, error } = await supabase.from('characters').select('*');
-    if (error) throw error;
+    const { count, error: countError } = await supabase
+        .from('characters')
+        .select('*', { count: 'exact', head: true });
 
-    if (!data || data.length === 0) return null;
+    if (countError) throw countError;
+    if (!count || count === 0) return null;
 
-    const randomIndex = Math.floor(Math.random() * data.length);
-    return data[randomIndex];
+    const randomOffset = Math.floor(Math.random() * count);
+    const { data, error } = await supabase
+        .from('characters')
+        .select('*')
+        .range(randomOffset, randomOffset)
+        .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
 }
 
 async function createCharacter(character) {
-    const { data, error } = await supabase
-        .from('characters')
-        .insert(character)
-        .select()
-        .single();
+    const { data, error } = await supabase.from('characters').insert(character).select().single();
     if (error) throw error;
     return data;
 }

@@ -1,5 +1,7 @@
+const logger = require('../utils/logger');
+
 module.exports = (err, req, res, _next) => {
-    console.error('Internal error:', err.stack || err.message);
+    logger.error('Internal error:', err.stack || err.message);
 
     res.status(500).json({
         success: false,

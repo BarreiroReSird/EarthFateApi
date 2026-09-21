@@ -1,4 +1,8 @@
-const { validateCredentials, validateCharacterStats } = require('./validators');
+const {
+    validateCredentials,
+    validateCharacterName,
+    validateCharacterStats,
+} = require('./validators');
 
 describe('validateCredentials', () => {
     it('should return valid when username and password are correct', () => {
@@ -59,6 +63,44 @@ describe('validateCredentials', () => {
         expect(result).toEqual({
             valid: false,
             message: 'Password must be at least 8 characters long',
+        });
+    });
+});
+
+describe('validateCharacterName', () => {
+    it('should return valid for normal character name', () => {
+        expect(validateCharacterName('Conan')).toEqual({ valid: true });
+    });
+
+    it('should return invalid when name is too short', () => {
+        expect(validateCharacterName('A')).toEqual({
+            valid: false,
+            message: 'Name must be between 2 and 30 characters',
+        });
+    });
+
+    it('should return invalid when name is too long', () => {
+        expect(validateCharacterName('a'.repeat(31))).toEqual({
+            valid: false,
+            message: 'Name must be between 2 and 30 characters',
+        });
+    });
+
+    it('should return invalid when name is not a string', () => {
+        expect(validateCharacterName(123)).toEqual({
+            valid: false,
+            message: 'Name must be between 2 and 30 characters',
+        });
+    });
+
+    it('should return invalid when name is undefined or empty', () => {
+        expect(validateCharacterName(undefined)).toEqual({
+            valid: false,
+            message: 'Name must be between 2 and 30 characters',
+        });
+        expect(validateCharacterName('   ')).toEqual({
+            valid: false,
+            message: 'Name must be between 2 and 30 characters',
         });
     });
 });

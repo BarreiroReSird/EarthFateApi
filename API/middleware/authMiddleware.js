@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config');
 
 function authMiddleware(req, res, next) {
     const authHeader = req.headers.authorization;
@@ -11,13 +12,12 @@ function authMiddleware(req, res, next) {
     }
 
     const token = authHeader.split(' ')[1];
-    const secret = process.env.JWT_SECRET || 'super_secret_earth_fate_key_change_in_production';
 
     try {
-        const decoded = jwt.verify(token, secret);
+        const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded;
         next();
-    } catch (error) {
+    } catch (_error) {
         return res.status(401).json({
             success: false,
             message: 'Invalid or expired token',
@@ -26,3 +26,4 @@ function authMiddleware(req, res, next) {
 }
 
 module.exports = authMiddleware;
+
