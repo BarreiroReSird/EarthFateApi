@@ -17,7 +17,17 @@ const corsOptions =
         ? { origin: CORS_ORIGIN.split(',').map((o) => o.trim()) }
         : {};
 
-app.use(compression());
+app.use(
+    compression({
+        filter: (req, res) => {
+            if (req.path === '/signup' || req.path === '/login' || req.headers.authorization) {
+                return false;
+            }
+            return compression.filter(req, res);
+        },
+    }),
+);
+
 app.use(cors(corsOptions));
 app.use(express.json({ limit: EXPRESS_JSON_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: EXPRESS_JSON_LIMIT }));
