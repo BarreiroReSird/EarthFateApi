@@ -52,6 +52,9 @@ cp .env.example .env
 | `PORT` | Server port (default: 3000) |
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_KEY` | Your Supabase anon/public key |
+| `JWT_SECRET` | Secret key used for signing JWT tokens |
+| `BCRYPT_SALT_ROUNDS` | Number of salt rounds for bcrypt hashing |
+| `CORS_ORIGIN` | Allowed origins for CORS (default: `*`) |
 
 Get these from **Supabase Dashboard > Settings > API**.
 
@@ -67,11 +70,11 @@ Get these from **Supabase Dashboard > Settings > API**.
 
 ## Quick Test (30 seconds)
 
-After starting the API with `npm start`, open a terminal and run these commands **in order** (step 1 must be done before step 3):
+After starting the API with `npm start`, open a terminal and run these commands **in order**:
 
-**1. Register a test user:**
+**1. Register a test user (returns a JWT token):**
 ```bash
-curl -X POST http://localhost:3000/signup -H "Content-Type: application/json" -d '{"username":"testuser","password":"123456"}'
+curl -X POST http://localhost:3000/signup -H "Content-Type: application/json" -d '{"username":"testuser","password":"password123"}'
 ```
 
 **2. Get the default Dragon character (GET endpoint works in browser too):**
@@ -79,21 +82,21 @@ curl -X POST http://localhost:3000/signup -H "Content-Type: application/json" -d
 curl http://localhost:3000/getRandomChar
 ```
 
-**3. Create your first hero character:**
+**3. Create your first hero character (using the JWT Bearer token):**
 ```bash
-curl -X POST http://localhost:3000/createCharacter -H "Content-Type: application/json" -d '{"name":"Conan","atk":60,"intelligence":40,"health":250,"username":"testuser","password":"123456"}'
+curl -X POST http://localhost:3000/createCharacter -H "Content-Type: application/json" -H "Authorization: Bearer <YOUR_JWT_TOKEN>" -d '{"name":"Conan","atk":60,"intelligence":40,"health":250}'
 ```
 
 ---
 
 ## Available Endpoints
 
-- `POST /signup` - Register a new user (with bcrypt password hashing)
-- `POST /login` - Login with username and password (with bcrypt verification)
+- `POST /signup` - Register a new user (returns JWT token)
+- `POST /login` - Login with username and password (returns JWT token)
 - `GET /getRandomChar` - Get a random character (returns a default Dragon if no characters exist yet)
-- `POST /createCharacter` - Create a new character (with stats validation and credential check)
+- `POST /createCharacter` - Create a new character (requires Bearer token authentication)
 - `GET /getChar?characterId=ID` - Get character by ID
-- `POST /updateCharacter` - Update character stats (with owner permission check)
+- `POST /updateCharacter` - Update character stats (requires Bearer token authentication)
 
 ---
 
@@ -101,15 +104,16 @@ curl -X POST http://localhost:3000/createCharacter -H "Content-Type: application
 
 ```
 API/
-├── server.js                 # Entry point: initializes Express, registers routes and middleware
+├── server.js                 # Entry point: initializes Express, rate limiter, routes and middleware
 ├── routes/
-│   ├── auth.js               # /signup and /login endpoints
-│   └── characters.js         # Character related endpoints (4 endpoints)
+│   ├── auth.js               # /signup and /login endpoints with JWT generation
+│   └── characters.js         # Character endpoints (protected via authMiddleware)
 ├── utils/
 │   ├── supabase.js           # Supabase client connection
 │   ├── store.js              # Database operations (users and characters)
 │   └── validators.js         # Input validation functions (credentials and character stats)
 └── middleware/
+    ├── authMiddleware.js     # JWT Bearer token authentication middleware
     └── errorHandler.js       # Global error handling middleware
 ```
 
@@ -120,6 +124,8 @@ API/
 - express - Web framework
 - cors - Cross origin resource sharing
 - bcrypt - Password hashing
+- jsonwebtoken - JWT token authentication
+- express-rate-limit - Rate limiting for API endpoints
 - @supabase/supabase-js - Supabase client for database access
 - dotenv - Load environment variables from .env
 
@@ -134,18 +140,21 @@ API/
 
 ## What's Been Built
 
-- User registration and login with bcrypt password hashing
+- User registration and login with bcrypt password hashing and JWT token authentication
+- Dedicated `authMiddleware` for protecting endpoints via HTTP Bearer tokens
+- Rate limiting on authentication endpoints to prevent brute-force attacks
+- Payload size limiting (10kb) to prevent DoS attacks
 - Character CRUD (create, read, update) with input validation
 - Owner permission checks on character edits
 - Persistent data storage with Supabase (PostgreSQL)
 - Layered project structure (routes / utils / middleware)
 - ESLint + Prettier for code quality
 - Unit tests for validators (Jest)
-- Environment variable template (.env.example)
+- Environment variable configuration (.env and .env.example)
 
 ## What's Next
 
-- Proper authentication (JWT tokens)
+- API routing standardization (/api/v1/)
 - API documentation (Swagger/OpenAPI)
 - Frontend integration (Angular)
 - Production deployment

@@ -1,9 +1,9 @@
 const validateCredentials = (username, password) => {
-    if (!username || username.length < 3) {
-        return { valid: false, message: 'The username must be at least 3 characters long' };
+    if (!username || typeof username !== 'string' || username.trim().length < 3 || username.trim().length > 30) {
+        return { valid: false, message: 'Username must be between 3 and 30 characters long' };
     }
-    if (!password || password.length < 6) {
-        return { valid: false, message: 'The password must be at least 6 characters long' };
+    if (!password || typeof password !== 'string' || password.length < 8) {
+        return { valid: false, message: 'Password must be at least 8 characters long' };
     }
     return { valid: true };
 };

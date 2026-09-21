@@ -1,8 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
-const bcrypt = require('bcrypt');
+const authMiddleware = require('../middleware/authMiddleware');
 const {
-    findUserByUsername,
     findCharacter,
     getRandomCharacter,
     createCharacter,
@@ -36,19 +35,15 @@ router.get('/getRandomChar', async (req, res, next) => {
     }
 });
 
-router.post('/createCharacter', async (req, res, next) => {
+router.post('/createCharacter', authMiddleware, async (req, res, next) => {
     try {
-        const { name, atk, intelligence, health, username, password, isMonster } = req.body;
+        const { name, atk, intelligence, health, isMonster } = req.body;
+        const userId = req.user.id;
 
-        const user = await findUserByUsername(username);
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-
-        if (!name || name.trim().length < 2) {
+        if (!name || typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 30) {
             return res
                 .status(400)
-                .json({ success: false, message: 'Name must have at least 2 characters' });
+                .json({ success: false, message: 'Name must be between 2 and 30 characters' });
         }
         const statsCheck = validateCharacterStats(atk, intelligence, health);
         if (!statsCheck.valid) {
@@ -63,7 +58,7 @@ router.post('/createCharacter', async (req, res, next) => {
             health,
             isMonster: Boolean(isMonster),
             img: 'hero.png',
-            idPlayer: user.id,
+            idPlayer: userId,
         });
 
         res.status(201).json({
@@ -96,22 +91,18 @@ router.get('/getChar', async (req, res, next) => {
     }
 });
 
-router.post('/updateCharacter', async (req, res, next) => {
+router.post('/updateCharacter', authMiddleware, async (req, res, next) => {
     try {
-        const { characterId, name, atk, intelligence, health, username, password } = req.body;
-
-        const user = await findUserByUsername(username);
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
+        const { characterId, name, atk, intelligence, health } = req.body;
+        const userId = req.user.id;
 
         if (!characterId) {
             return res.status(400).json({ success: false, message: 'characterId is required' });
         }
-        if (!name || name.trim().length < 2) {
+        if (!name || typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 30) {
             return res
                 .status(400)
-                .json({ success: false, message: 'Name must have at least 2 characters' });
+                .json({ success: false, message: 'Name must be between 2 and 30 characters' });
         }
         const statsCheck = validateCharacterStats(atk, intelligence, health);
         if (!statsCheck.valid) {
@@ -124,7 +115,7 @@ router.post('/updateCharacter', async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Character not found' });
         }
 
-        if (character.idPlayer !== user.id) {
+        if (character.idPlayer !== userId) {
             return res.status(403).json({
                 success: false,
                 message: 'You do not have permission to edit this character',

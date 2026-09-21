@@ -20,7 +20,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/BarreiroReSird/EarthFateApi/issues"
@@ -31,7 +31,9 @@
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

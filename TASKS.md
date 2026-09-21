@@ -33,8 +33,8 @@ Things I still need to do, roughly ordered by importance. Checkboxes get ticked 
 - [ ] Tests for the error handler
 - [ ] Edge case tests for validators (NaN, null, Infinity)
 - [ ] Security tests (injection, oversized payloads)
-- [ ] Bcrypt salt rounds should come from env var
-- [ ] Set an explicit body size limit in express.json() (e.g. limit: '10kb')
+- [x] Bcrypt salt rounds should come from env var
+- [x] Set an explicit body size limit in express.json() (e.g. limit: '10kb')
 
 ## Nice to have
 
@@ -42,4 +42,4 @@ Things I still need to do, roughly ordered by importance. Checkboxes get ticked 
 - [ ] Husky pre-commit hooks
 - [ ] engines field in package.json
 - [ ] Docker setup
-- [ ] Better .env.example with comments
+- [x] Better .env.example with comments

@@ -2,39 +2,47 @@ const { validateCredentials, validateCharacterStats } = require('./validators');
 
 describe('validateCredentials', () => {
     it('should return valid when username and password are correct', () => {
-        const result = validateCredentials('carlos', '123456');
+        const result = validateCredentials('carlos', '12345678');
         expect(result).toEqual({ valid: true });
     });
 
     it('should return invalid when username is too short', () => {
-        const result = validateCredentials('ca', '123456');
+        const result = validateCredentials('ca', '12345678');
         expect(result).toEqual({
             valid: false,
-            message: 'The username must be at least 3 characters long',
+            message: 'Username must be between 3 and 30 characters long',
+        });
+    });
+
+    it('should return invalid when username is too long', () => {
+        const result = validateCredentials('a'.repeat(31), '12345678');
+        expect(result).toEqual({
+            valid: false,
+            message: 'Username must be between 3 and 30 characters long',
         });
     });
 
     it('should return invalid when username is empty', () => {
-        const result = validateCredentials('', '123456');
+        const result = validateCredentials('', '12345678');
         expect(result).toEqual({
             valid: false,
-            message: 'The username must be at least 3 characters long',
+            message: 'Username must be between 3 and 30 characters long',
         });
     });
 
     it('should return invalid when username is undefined', () => {
-        const result = validateCredentials(undefined, '123456');
+        const result = validateCredentials(undefined, '12345678');
         expect(result).toEqual({
             valid: false,
-            message: 'The username must be at least 3 characters long',
+            message: 'Username must be between 3 and 30 characters long',
         });
     });
 
     it('should return invalid when password is too short', () => {
-        const result = validateCredentials('carlos', '12345');
+        const result = validateCredentials('carlos', '1234567');
         expect(result).toEqual({
             valid: false,
-            message: 'The password must be at least 6 characters long',
+            message: 'Password must be at least 8 characters long',
         });
     });
 
@@ -42,7 +50,7 @@ describe('validateCredentials', () => {
         const result = validateCredentials('carlos', '');
         expect(result).toEqual({
             valid: false,
-            message: 'The password must be at least 6 characters long',
+            message: 'Password must be at least 8 characters long',
         });
     });
 
@@ -50,7 +58,7 @@ describe('validateCredentials', () => {
         const result = validateCredentials('carlos', undefined);
         expect(result).toEqual({
             valid: false,
-            message: 'The password must be at least 6 characters long',
+            message: 'Password must be at least 8 characters long',
         });
     });
 });
