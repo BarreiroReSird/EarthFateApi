@@ -20,11 +20,13 @@ Things I still need to do, roughly ordered by importance. Checkboxes get ticked 
 - [ ] API documentation (Swagger/OpenAPI)
 - [ ] Angular integration
 - [ ] Deployment
+- [ ] Optimize getRandomCharacter query in store.js to randomize directly in database instead of fetching all records into Node.js memory
+- [ ] Standardize routes with RESTful conventions (GET /api/v1/characters/random, GET /api/v1/characters/:id, POST /api/v1/characters, PATCH /api/v1/characters/:id)
 
 ## Code quality
 
 - [ ] Name validation duplicated in createCharacter and updateCharacter -- extract to validators.js
-- [ ] Magic numbers everywhere (monster stats, bcrypt rounds, etc.) -- pull them into config
+- [ ] Magic numbers everywhere (monster stats, bcrypt rounds, etc.) -- pull them into config module
 - [ ] Add compression middleware
 - [ ] JSDoc on the functions
 - [ ] Document request/response formats in the README
@@ -32,7 +34,7 @@ Things I still need to do, roughly ordered by importance. Checkboxes get ticked 
 - [ ] Edge case tests for validators (NaN, null, Infinity)
 - [ ] Security tests (injection, oversized payloads)
 - [ ] Bcrypt salt rounds should come from env var
-- [ ] Set an explicit body size limit in express.json()
+- [ ] Set an explicit body size limit in express.json() (e.g. limit: '10kb')
 
 ## Nice to have
 
