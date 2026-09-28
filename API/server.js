@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 const {
     PORT,
     IS_PRODUCTION,
-    CORS_ORIGIN,
+    CORS_ORIGINS,
     EXPRESS_JSON_LIMIT,
     API_PREFIX,
     RATE_LIMITS,
@@ -24,17 +24,17 @@ const errorHandler = require('./middleware/errorHandler');
 
 // Building the app inside a function is what lets a test make an app with
 // different settings, instead of having to reload this whole module.
-const createApp = ({ rateLimits = RATE_LIMITS } = {}) => {
+const createApp = ({ rateLimits = RATE_LIMITS, trustProxy = TRUST_PROXY } = {}) => {
     const app = express();
 
     // Without this the client IP is the reverse proxy's own address, so every
     // visitor would share a single rate-limit bucket. See .env.example.
-    app.set('trust proxy', TRUST_PROXY);
+    app.set('trust proxy', trustProxy);
 
-    const corsOptions =
-        CORS_ORIGIN && CORS_ORIGIN !== '*'
-            ? { origin: CORS_ORIGIN.split(',').map((o) => o.trim()) }
-            : {};
+    // An empty list means development with nothing configured, where cors
+    // falls back to reflecting any origin. Production cannot reach this: config
+    // refuses to load without an explicit list of https origins.
+    const corsOptions = CORS_ORIGINS.length ? { origin: CORS_ORIGINS } : {};
 
     app.use(
         helmet({
@@ -44,7 +44,11 @@ const createApp = ({ rateLimits = RATE_LIMITS } = {}) => {
             crossOriginResourcePolicy: { policy: 'cross-origin' },
             // HSTS is only honoured over HTTPS, so it is enabled for production only
             strictTransportSecurity: IS_PRODUCTION
-                ? { maxAge: HSTS.MAX_AGE, includeSubDomains: HSTS.INCLUDE_SUBDOMAINS }
+                ? {
+                      maxAge: HSTS.MAX_AGE,
+                      includeSubDomains: HSTS.INCLUDE_SUBDOMAINS,
+                      preload: HSTS.PRELOAD,
+                  }
                 : false,
         }),
     );
@@ -104,7 +108,7 @@ const createApp = ({ rateLimits = RATE_LIMITS } = {}) => {
 const startServer = () => {
     const app = createApp();
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         logger.info(`API running at http://localhost:${PORT}`);
         logger.info(`Available endpoints:`);
         logger.info(`   GET    http://localhost:${PORT}/health`);
@@ -117,6 +121,21 @@ const startServer = () => {
         logger.info(`   PATCH  http://localhost:${PORT}${API_PREFIX}/characters/:id`);
         logger.info(`   DELETE http://localhost:${PORT}${API_PREFIX}/characters/:id`);
     });
+
+    // Node does not wait for open requests on its own: on SIGTERM (what a host
+    // sends during a rolling deploy) the process would drop whatever was still
+    // in flight. Stopping the listener first lets those finish.
+    const shutdown = (signal) => {
+        logger.info(`${signal} received, waiting for open requests before exiting...`);
+
+        server.close(() => {
+            logger.info('All connections closed, exiting.');
+            process.exit(0);
+        });
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
 };
 
 // Requiring this file builds an app; running it starts the server.

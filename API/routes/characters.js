@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const authMiddleware = require('../middleware/authMiddleware');
 const { DEFAULT_MONSTER } = require('../config');
 const store = require('../utils/store');
+const logger = require('../utils/logger');
 const AppError = require('../utils/appError');
 const {
     validateResourceId,
@@ -29,9 +30,13 @@ const findCharacterOrFail = async (id) => {
 };
 
 // Answering 404 instead of 403 keeps the API from confirming that a character
-// owned by someone else exists.
-const assertOwnership = (character, userId) => {
-    if (character.idPlayer !== userId) {
+// owned by someone else exists. The attempt still gets logged: a 404 hides the
+// resource from the caller, not from whoever watches the logs for probes.
+const assertOwnership = (character, req) => {
+    if (character.idPlayer !== req.user.id) {
+        logger.warn(
+            `Denied ${req.method} ${req.baseUrl}${character.id} to user ${req.user.id} (owner is ${character.idPlayer})`,
+        );
         throw AppError.notFound('Character not found');
     }
 };
@@ -81,7 +86,7 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     assertValid(validateCharacterPatch({ name, atk, intelligence, health }));
 
     const character = await findCharacterOrFail(req.params.id);
-    assertOwnership(character, req.user.id);
+    assertOwnership(character, req);
 
     const fields = {};
     if (name !== undefined) fields.name = name.trim();
@@ -96,7 +101,7 @@ router.patch('/:id', authMiddleware, async (req, res) => {
 
 router.delete('/:id', authMiddleware, async (req, res) => {
     const character = await findCharacterOrFail(req.params.id);
-    assertOwnership(character, req.user.id);
+    assertOwnership(character, req);
 
     await store.deleteCharacter(req.params.id);
 

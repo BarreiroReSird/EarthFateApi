@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const { createApp } = require('../server');
 const { JWT_SECRET, RATE_LIMITS, DEFAULT_MONSTER } = require('../config');
 const store = require('../utils/store');
+const logger = require('../utils/logger');
 
 const app = createApp();
 
@@ -77,8 +78,9 @@ describe('GET /health', () => {
 describe('rate limiting', () => {
     // Each app gets its own counter, so a low limit can be used without
     // affecting the other tests.
-    const appWithLimits = ({ general, auth }) =>
+    const appWithLimits = ({ general, auth }, { trustProxy } = {}) =>
         createApp({
+            ...(trustProxy === undefined ? {} : { trustProxy }),
             rateLimits: {
                 GENERAL: { ...RATE_LIMITS.GENERAL, MAX_REQUESTS: general },
                 AUTH: { ...RATE_LIMITS.AUTH, MAX_REQUESTS: auth },
@@ -117,6 +119,37 @@ describe('rate limiting', () => {
 
         expect((await request(limitedApp).get('/health')).status).toBe(200);
         expect((await request(limitedApp).get('/health')).status).toBe(200);
+    });
+
+    // What TRUST_PROXY is actually for. Behind a reverse proxy every request
+    // arrives from the proxy's own address, so without trusting the hop the
+    // limiter puts the whole internet in one bucket and a single visitor can
+    // lock everyone else out. These two tests pin both halves of that: trusting
+    // one hop buckets per client, and not trusting it collapses them together.
+
+    it('should count each forwarded client separately when one proxy is trusted', async () => {
+        const proxiedApp = appWithLimits({ general: 2, auth: 100 }, { trustProxy: 1 });
+
+        const from = (ip) => request(proxiedApp).get('/health').set('X-Forwarded-For', ip);
+
+        expect((await from('203.0.113.10')).status).toBe(200);
+        expect((await from('203.0.113.10')).status).toBe(200);
+        // Same client, one over the limit.
+        expect((await from('203.0.113.10')).status).toBe(429);
+        // A different client has its own budget and is untouched by the above.
+        expect((await from('198.51.100.7')).status).toBe(200);
+    });
+
+    it('should ignore X-Forwarded-For when no proxy is trusted', async () => {
+        const directApp = appWithLimits({ general: 2, auth: 100 }, { trustProxy: false });
+
+        const from = (ip) => request(directApp).get('/health').set('X-Forwarded-For', ip);
+
+        expect((await from('203.0.113.10')).status).toBe(200);
+        expect((await from('198.51.100.7')).status).toBe(200);
+        // A forged header cannot buy a new bucket: all three are the same client
+        // as far as the server is concerned, because the header is not trusted.
+        expect((await from('192.0.2.99')).status).toBe(429);
     });
 });
 
@@ -498,6 +531,29 @@ describe('error handling', () => {
         expect(res.status).toBe(500);
         expect(res.body).toEqual({ error: 'An internal error occurred, please try again later' });
         expect(JSON.stringify(res.body)).not.toMatch(/postgres|secret|10\.0\.0\.5/);
+    });
+
+    // Hiding the message from the client is only half the job. If the details
+    // were not written to the log either, the response would be untraceable and
+    // a real outage would be invisible, so both halves are asserted together.
+    it('should log the real error that the response hides', async () => {
+        const failure = new Error('connection to postgres://user:secret@10.0.0.5:5432 failed');
+        store.findCharacter.mockRejectedValue(failure);
+        const logged = jest.spyOn(logger, 'error').mockImplementation(() => {});
+
+        try {
+            const res = await request(app).get(`/api/v1/characters/${CHAR_ID}`);
+
+            expect(res.status).toBe(500);
+            expect(logged).toHaveBeenCalled();
+            const [message, detail] = logged.mock.calls[0];
+            expect(message).toMatch(/internal/i);
+            // The stack, connection string and all: the detail the response is
+            // hiding has to be the part that reaches the log.
+            expect(detail).toContain('10.0.0.5');
+        } finally {
+            logged.mockRestore();
+        }
     });
 });
 

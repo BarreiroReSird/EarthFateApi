@@ -12,14 +12,60 @@ if (
     );
 }
 
+const CORS_ORIGINS = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 // A wildcard in production would let any site on the internet call this API
 // from a browser on behalf of a logged-in user, so it fails here rather than
 // shipping quietly. A read-only public API would be the exception, and this one
 // is not: everything except /health and /characters/random needs a token.
-if (isProduction && (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN.trim() === '*')) {
-    throw new Error(
-        'FATAL SECURITY ERROR: CORS_ORIGIN must list the allowed origins in production, e.g. https://your-frontend.com. A wildcard ("*") is not allowed!',
-    );
+//
+// The list is matched exactly, so a pattern like "*.example.com" never matches
+// anything at all. Rejecting it here turns that silent breakage into a boot
+// error, and it is also the one way to make a permissive-looking value safe.
+if (isProduction) {
+    if (CORS_ORIGINS.length === 0) {
+        throw new Error(
+            'FATAL SECURITY ERROR: CORS_ORIGIN must list the allowed origins in production, e.g. https://your-frontend.com. A wildcard ("*") is not allowed!',
+        );
+    }
+
+    for (const origin of CORS_ORIGINS) {
+        // "https://*.example.com" parses as a perfectly valid URL, so it would
+        // pass every other check here and then never match a single request.
+        // Any wildcard is rejected instead of being silently useless.
+        if (origin.includes('*')) {
+            throw new Error(
+                `FATAL SECURITY ERROR: CORS_ORIGIN entry "${origin}" is a pattern. List each origin in full, e.g. https://game.example.com,https://www.example.com`,
+            );
+        }
+
+        let parsed;
+        try {
+            parsed = new URL(origin);
+        } catch {
+            throw new Error(
+                `FATAL SECURITY ERROR: CORS_ORIGIN entry "${origin}" is not a valid origin, e.g. https://your-frontend.com`,
+            );
+        }
+
+        // Plain HTTP in production would let the origin be reached in the clear,
+        // and a path or port suffix means the value is not what will be compared
+        // against the browser's Origin header, so it would silently never match.
+        if (parsed.protocol !== 'https:') {
+            throw new Error(
+                `FATAL SECURITY ERROR: CORS_ORIGIN entry "${origin}" must use https in production!`,
+            );
+        }
+
+        if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
+            throw new Error(
+                `FATAL SECURITY ERROR: CORS_ORIGIN entry "${origin}" must be a bare origin with no path, query or fragment!`,
+            );
+        }
+    }
 }
 
 const parsedSaltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10);
@@ -55,6 +101,7 @@ module.exports = {
     IS_PRODUCTION: isProduction,
     API_PREFIX: '/api/v1',
     CORS_ORIGIN: process.env.CORS_ORIGIN,
+    CORS_ORIGINS,
     TRUST_PROXY: parseTrustProxy(),
     JWT_SECRET: process.env.JWT_SECRET || 'super_secret_earth_fate_key_change_in_production',
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
@@ -104,6 +151,12 @@ module.exports = {
     },
     HSTS: {
         MAX_AGE: 15552000,
+        // includeSubDomains and preload are both irreversible in practice: a
+        // browser that has seen the header will refuse plain HTTP to the domain
+        // and its subdomains for as long as max-age lasts, and preload makes it
+        // near-impossible to undo. Both stay off unless someone knows the whole
+        // domain is on HTTPS, including things like internal admin hosts.
         INCLUDE_SUBDOMAINS: parseBooleanEnv('HSTS_INCLUDE_SUBDOMAINS', false),
+        PRELOAD: parseBooleanEnv('HSTS_PRELOAD', false),
     },
 };

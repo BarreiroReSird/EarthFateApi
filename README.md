@@ -59,6 +59,7 @@ cp .env.example .env
 | `RATE_LIMIT_AUTH_MAX` | Requests per 15 min on `/auth` (default: 10) |
 | `TRUST_PROXY` | Number of reverse proxies in front of the API (default: `false`, set to `1` on Heroku/Render/Cloudflare/nginx) |
 | `HSTS_INCLUDE_SUBDOMAINS` | Apply HSTS to subdomains too (default: `false`) |
+| `HSTS_PRELOAD` | Ask browsers to preload this domain as HTTPS-only (default: `false`) |
 
 > **`TRUST_PROXY` matters more than it looks.** Express only reads the client IP from
 > `X-Forwarded-For` for the proxy hops it trusts. Behind a reverse proxy with this set to
@@ -368,7 +369,13 @@ So that comments stay consistent across the codebase:
 - Rate limiting across the whole API plus a stricter limit on the auth endpoints,
   with a validation that refuses to run if the proxy configuration would make the
   limits meaningless (`TRUST_PROXY`)
-- CORS restricted to a configurable list of origins
+- CORS restricted to a configurable list of origins, matched exactly (a suffix
+  such as `example.com.evil.net` does not match `https://example.com`). In
+  production the API refuses to start unless every entry is an `https` origin
+  with no wildcard and no path, so a frontend cannot end up locked out by a
+  silently wrong list
+- Graceful shutdown on `SIGTERM`/`SIGINT`, so a rolling deploy does not cut
+  requests that are still in flight
 - Central configuration module (`API/config/index.js`) for application constants
 - `createApp()` factory, so a test can build the API with different settings
   (that is how the rate limit tests work) instead of reloading the module
