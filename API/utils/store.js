@@ -24,6 +24,17 @@ async function findCharacter(id) {
     return data;
 }
 
+async function findCharactersByPlayer(idPlayer) {
+    const { data, error } = await supabase
+        .from('characters')
+        .select('*')
+        .eq('idPlayer', idPlayer)
+        .order('name', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+}
+
 async function getRandomCharacter() {
     const { count, error: countError } = await supabase
         .from('characters')
@@ -60,11 +71,18 @@ async function updateCharacter(id, fields) {
     return data;
 }
 
+async function deleteCharacter(id) {
+    const { error } = await supabase.from('characters').delete().eq('id', id);
+    if (error) throw error;
+}
+
 module.exports = {
     findUserByUsername,
     createUser,
     findCharacter,
+    findCharactersByPlayer,
     getRandomCharacter,
     createCharacter,
     updateCharacter,
+    deleteCharacter,
 };

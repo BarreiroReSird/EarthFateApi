@@ -1,13 +1,24 @@
 require('dotenv').config();
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
-const { PORT, CORS_ORIGIN, EXPRESS_JSON_LIMIT } = require('./config');
+const {
+    PORT,
+    IS_PRODUCTION,
+    CORS_ORIGIN,
+    EXPRESS_JSON_LIMIT,
+    API_PREFIX,
+    RATE_LIMITS,
+    HSTS,
+} = require('./config');
 const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth');
 const characterRoutes = require('./routes/characters');
+const healthRoutes = require('./routes/health');
+const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -18,9 +29,24 @@ const corsOptions =
         : {};
 
 app.use(
+    helmet({
+        // JSON-only API, no HTML is served so CSP would only get in the way
+        contentSecurityPolicy: false,
+        // CORS is handled by the cors middleware below
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+        // HSTS is only honoured over HTTPS, so it is enabled for production only
+        strictTransportSecurity: IS_PRODUCTION
+            ? { maxAge: HSTS.MAX_AGE, includeSubDomains: HSTS.INCLUDE_SUBDOMAINS }
+            : false,
+    }),
+);
+
+const UNCOMPRESSED_PATHS = new Set([`${API_PREFIX}/auth/signup`, `${API_PREFIX}/auth/login`]);
+
+app.use(
     compression({
         filter: (req, res) => {
-            if (req.path === '/signup' || req.path === '/login' || req.headers.authorization) {
+            if (UNCOMPRESSED_PATHS.has(req.path) || req.headers.authorization) {
                 return false;
             }
             return compression.filter(req, res);
@@ -32,35 +58,42 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: EXPRESS_JSON_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: EXPRESS_JSON_LIMIT }));
 
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 10,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    message: {
-        success: false,
-        message: 'Too many authentication attempts, please try again later.',
-    },
-});
+const buildLimiter = (limit, message) =>
+    rateLimit({
+        windowMs: limit.WINDOW_MS,
+        limit: limit.MAX_REQUESTS,
+        standardHeaders: 'draft-7',
+        legacyHeaders: false,
+        message: { error: message },
+    });
 
-app.use('/signup', authLimiter);
-app.use('/login', authLimiter);
+app.use(buildLimiter(RATE_LIMITS.GENERAL, 'Too many requests, please try again later.'));
+app.use(
+    `${API_PREFIX}/auth`,
+    buildLimiter(RATE_LIMITS.AUTH, 'Too many authentication attempts, please try again later.'),
+);
 
-app.use('/', authRoutes);
-app.use('/', characterRoutes);
+app.use('/health', healthRoutes);
 
+app.use(`${API_PREFIX}/auth`, authRoutes);
+app.use(`${API_PREFIX}/characters`, characterRoutes);
+
+app.use(notFound);
 app.use(errorHandler);
 
 if (process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => {
         logger.info(`API running at http://localhost:${PORT}`);
         logger.info(`Available endpoints:`);
-        logger.info(`   POST http://localhost:${PORT}/signup`);
-        logger.info(`   POST http://localhost:${PORT}/login`);
-        logger.info(`   GET  http://localhost:${PORT}/getRandomChar`);
-        logger.info(`   POST http://localhost:${PORT}/createCharacter`);
-        logger.info(`   GET  http://localhost:${PORT}/getChar?characterId=ID`);
-        logger.info(`   POST http://localhost:${PORT}/updateCharacter`);
+        logger.info(`   GET    http://localhost:${PORT}/health`);
+        logger.info(`   POST   http://localhost:${PORT}${API_PREFIX}/auth/signup`);
+        logger.info(`   POST   http://localhost:${PORT}${API_PREFIX}/auth/login`);
+        logger.info(`   GET    http://localhost:${PORT}${API_PREFIX}/characters/random`);
+        logger.info(`   GET    http://localhost:${PORT}${API_PREFIX}/characters`);
+        logger.info(`   POST   http://localhost:${PORT}${API_PREFIX}/characters`);
+        logger.info(`   GET    http://localhost:${PORT}${API_PREFIX}/characters/:id`);
+        logger.info(`   PATCH  http://localhost:${PORT}${API_PREFIX}/characters/:id`);
+        logger.info(`   DELETE http://localhost:${PORT}${API_PREFIX}/characters/:id`);
     });
 }
 

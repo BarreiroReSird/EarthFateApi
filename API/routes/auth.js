@@ -3,78 +3,53 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET, JWT_EXPIRES_IN, BCRYPT_SALT_ROUNDS } = require('../config');
-const { findUserByUsername, createUser } = require('../utils/store');
+const store = require('../utils/store');
+const AppError = require('../utils/appError');
 const { validateCredentials } = require('../utils/validators');
 
 const router = express.Router();
 
-router.post('/signup', async (req, res, next) => {
-    try {
-        const { username, password } = req.body;
-
-        const credCheck = validateCredentials(username, password);
-        if (!credCheck.valid) {
-            return res.status(400).json({ success: false, message: credCheck.message });
-        }
-
-        const existingUser = await findUserByUsername(username);
-        if (existingUser) {
-            return res.status(409).json({ success: false, message: 'User already exists' });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-
-        const newUser = await createUser({
-            id: crypto.randomUUID(),
-            username,
-            password: hashedPassword,
-        });
-
-        const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET, {
-            expiresIn: JWT_EXPIRES_IN,
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'Registration successful',
-            token,
-            userId: newUser.id,
-            username: newUser.username,
-        });
-    } catch (error) {
-        next(error);
-    }
+const toSession = (user) => ({
+    id: user.id,
+    username: user.username,
+    token: jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
+        expiresIn: JWT_EXPIRES_IN,
+    }),
 });
 
-router.post('/login', async (req, res, next) => {
-    try {
-        const { username, password } = req.body;
+router.post('/signup', async (req, res) => {
+    const { username, password } = req.body;
 
-        const credCheck = validateCredentials(username, password);
-        if (!credCheck.valid) {
-            return res.status(400).json({ success: false, message: credCheck.message });
-        }
+    const credCheck = validateCredentials(username, password);
+    if (!credCheck.valid) throw AppError.badRequest(credCheck.message);
 
-        const user = await findUserByUsername(username);
+    const existingUser = await store.findUserByUsername(username);
+    if (existingUser) throw AppError.conflict('User already exists');
 
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
-        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
-            expiresIn: JWT_EXPIRES_IN,
-        });
+    const user = await store.createUser({
+        id: crypto.randomUUID(),
+        username,
+        password: hashedPassword,
+    });
 
-        res.status(200).json({
-            success: true,
-            message: 'Login successful',
-            token,
-            userId: user.id,
-            username: user.username,
-        });
-    } catch (error) {
-        next(error);
+    res.status(201).json(toSession(user));
+});
+
+router.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    const credCheck = validateCredentials(username, password);
+    if (!credCheck.valid) throw AppError.badRequest(credCheck.message);
+
+    const user = await store.findUserByUsername(username);
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+        throw AppError.unauthorized('Invalid credentials');
     }
+
+    res.status(200).json(toSession(user));
 });
 
 module.exports = router;

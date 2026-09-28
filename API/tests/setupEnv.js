@@ -1,0 +1,2 @@
+process.env.RATE_LIMIT_GENERAL_MAX = '10000';
+process.env.RATE_LIMIT_AUTH_MAX = '10000';

@@ -27,4 +27,3 @@ describe('logger utility', () => {
         expect(logger.sanitize(null)).toBeNull();
     });
 });
-

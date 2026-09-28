@@ -1,27 +1,21 @@
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../config');
+const AppError = require('../utils/appError');
 
 function authMiddleware(req, res, next) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({
-            success: false,
-            message: 'Authentication token is required',
-        });
+        return next(AppError.unauthorized('Authentication token is required'));
     }
 
     const token = authHeader.split(' ')[1];
 
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded;
+        req.user = jwt.verify(token, JWT_SECRET);
         next();
-    } catch (_error) {
-        return res.status(401).json({
-            success: false,
-            message: 'Invalid or expired token',
-        });
+    } catch {
+        return next(AppError.unauthorized('Invalid or expired token'));
     }
 }
 

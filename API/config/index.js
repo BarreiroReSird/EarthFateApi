@@ -16,8 +16,15 @@ const parsedSaltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10);
 const saltRounds =
     !isNaN(parsedSaltRounds) && parsedSaltRounds >= 10 ? parsedSaltRounds : isProduction ? 12 : 10;
 
+const parseMaxRequests = (envKey, fallback) => {
+    const parsed = parseInt(process.env[envKey], 10);
+    return !isNaN(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 module.exports = {
     PORT: process.env.PORT || 3000,
+    IS_PRODUCTION: isProduction,
+    API_PREFIX: '/api/v1',
     CORS_ORIGIN: process.env.CORS_ORIGIN,
     JWT_SECRET: process.env.JWT_SECRET || 'super_secret_earth_fate_key_change_in_production',
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
@@ -51,5 +58,19 @@ module.exports = {
             MIN_HEALTH: 1,
             MAX_HEALTH: 500,
         },
+        RESOURCE_ID: {
+            MAX_LENGTH: 64,
+        },
     },
+    RATE_LIMITS: {
+        GENERAL: {
+            WINDOW_MS: 15 * 60 * 1000,
+            MAX_REQUESTS: parseMaxRequests('RATE_LIMIT_GENERAL_MAX', 300),
+        },
+        AUTH: {
+            WINDOW_MS: 15 * 60 * 1000,
+            MAX_REQUESTS: parseMaxRequests('RATE_LIMIT_AUTH_MAX', 10),
+        },
+    },
+    HSTS: { MAX_AGE: 15552000, INCLUDE_SUBDOMAINS: true },
 };

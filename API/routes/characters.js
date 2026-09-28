@@ -2,133 +2,102 @@ const express = require('express');
 const crypto = require('crypto');
 const authMiddleware = require('../middleware/authMiddleware');
 const { DEFAULT_MONSTER } = require('../config');
+const store = require('../utils/store');
+const AppError = require('../utils/appError');
 const {
-    findCharacter,
-    getRandomCharacter,
-    createCharacter,
-    updateCharacter,
-} = require('../utils/store');
-const { validateCharacterName, validateCharacterStats } = require('../utils/validators');
+    validateResourceId,
+    validateCharacterName,
+    validateCharacterStats,
+    validateCharacterPatch,
+} = require('../utils/validators');
 
 const router = express.Router();
 
-router.get('/getRandomChar', async (req, res, next) => {
-    try {
-        const character = await getRandomCharacter();
+const assertValid = (check) => {
+    if (!check.valid) throw AppError.badRequest(check.message);
+};
 
-        if (!character) {
-            return res.status(200).json(DEFAULT_MONSTER);
-        }
+// Validates the id before it ever reaches the database, so a malformed id is a
+// 400 instead of a database error.
+const findCharacterOrFail = async (id) => {
+    assertValid(validateResourceId(id));
 
-        res.status(200).json(character);
-    } catch (error) {
-        next(error);
+    const character = await store.findCharacter(id);
+    if (!character) throw AppError.notFound('Character not found');
+
+    return character;
+};
+
+const assertOwnership = (character, userId, action) => {
+    if (character.idPlayer !== userId) {
+        throw AppError.forbidden(`You do not have permission to ${action} this character`);
     }
+};
+
+router.get('/random', async (req, res) => {
+    const character = await store.getRandomCharacter();
+
+    res.status(200).json(character || DEFAULT_MONSTER);
 });
 
-router.post('/createCharacter', authMiddleware, async (req, res, next) => {
-    try {
-        const { name, atk, intelligence, health, isMonster } = req.body;
-        const userId = req.user.id;
+router.get('/', authMiddleware, async (req, res) => {
+    const characters = await store.findCharactersByPlayer(req.user.id);
 
-        const nameCheck = validateCharacterName(name);
-        if (!nameCheck.valid) {
-            return res.status(400).json({ success: false, message: nameCheck.message });
-        }
-
-        const statsCheck = validateCharacterStats(atk, intelligence, health);
-        if (!statsCheck.valid) {
-            return res.status(400).json({ success: false, message: statsCheck.message });
-        }
-
-        const newChar = await createCharacter({
-            id: crypto.randomUUID(),
-            name: name.trim(),
-            atk,
-            intelligence,
-            health,
-            isMonster: Boolean(isMonster),
-            img: 'hero.png',
-            idPlayer: userId,
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'Character successfully created',
-            character: newChar,
-        });
-    } catch (error) {
-        next(error);
-    }
+    res.status(200).json(characters);
 });
 
-router.get('/getChar', async (req, res, next) => {
-    try {
-        const characterId = req.query.characterId;
+router.post('/', authMiddleware, async (req, res) => {
+    const { name, atk, intelligence, health, isMonster } = req.body;
 
-        if (!characterId) {
-            return res.status(400).json({ success: false, message: 'characterId is required' });
-        }
+    assertValid(validateCharacterName(name));
+    assertValid(validateCharacterStats(atk, intelligence, health));
 
-        const character = await findCharacter(characterId);
+    const character = await store.createCharacter({
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        atk,
+        intelligence,
+        health,
+        isMonster: Boolean(isMonster),
+        img: 'hero.png',
+        idPlayer: req.user.id,
+    });
 
-        if (!character) {
-            return res.status(404).json({ success: false, message: 'Character not found' });
-        }
-
-        res.status(200).json(character);
-    } catch (error) {
-        next(error);
-    }
+    res.location(`${req.baseUrl}/${character.id}`).status(201).json(character);
 });
 
-router.post('/updateCharacter', authMiddleware, async (req, res, next) => {
-    try {
-        const { characterId, name, atk, intelligence, health } = req.body;
-        const userId = req.user.id;
+router.get('/:id', async (req, res) => {
+    const character = await findCharacterOrFail(req.params.id);
 
-        if (!characterId) {
-            return res.status(400).json({ success: false, message: 'characterId is required' });
-        }
+    res.status(200).json(character);
+});
 
-        const nameCheck = validateCharacterName(name);
-        if (!nameCheck.valid) {
-            return res.status(400).json({ success: false, message: nameCheck.message });
-        }
+router.patch('/:id', authMiddleware, async (req, res) => {
+    const { name, atk, intelligence, health } = req.body;
 
-        const statsCheck = validateCharacterStats(atk, intelligence, health);
-        if (!statsCheck.valid) {
-            return res.status(400).json({ success: false, message: statsCheck.message });
-        }
+    assertValid(validateCharacterPatch({ name, atk, intelligence, health }));
 
-        const character = await findCharacter(characterId);
+    const character = await findCharacterOrFail(req.params.id);
+    assertOwnership(character, req.user.id, 'edit');
 
-        if (!character) {
-            return res.status(404).json({ success: false, message: 'Character not found' });
-        }
+    const fields = {};
+    if (name !== undefined) fields.name = name.trim();
+    if (atk !== undefined) fields.atk = atk;
+    if (intelligence !== undefined) fields.intelligence = intelligence;
+    if (health !== undefined) fields.health = health;
 
-        if (character.idPlayer !== userId) {
-            return res.status(403).json({
-                success: false,
-                message: 'You do not have permission to edit this character',
-            });
-        }
+    const updated = await store.updateCharacter(req.params.id, fields);
 
-        const updated = await updateCharacter(characterId, {
-            name: name.trim(),
-            atk,
-            intelligence,
-            health,
-        });
+    res.status(200).json(updated);
+});
 
-        res.status(200).json({
-            success: true,
-            message: 'Character updated successfully.',
-            character: updated,
-        });
-    } catch (error) {
-        next(error);
-    }
+router.delete('/:id', authMiddleware, async (req, res) => {
+    const character = await findCharacterOrFail(req.params.id);
+    assertOwnership(character, req.user.id, 'delete');
+
+    await store.deleteCharacter(req.params.id);
+
+    res.status(204).send();
 });
 
 module.exports = router;

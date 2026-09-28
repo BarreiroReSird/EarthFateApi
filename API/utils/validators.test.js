@@ -1,7 +1,9 @@
 const {
     validateCredentials,
+    validateResourceId,
     validateCharacterName,
     validateCharacterStats,
+    validateCharacterPatch,
 } = require('./validators');
 
 describe('validateCredentials', () => {
@@ -64,6 +66,41 @@ describe('validateCredentials', () => {
             valid: false,
             message: 'Password must be at least 8 characters long',
         });
+    });
+});
+
+describe('validateResourceId', () => {
+    it('should accept a uuid', () => {
+        expect(validateResourceId('33333333-3333-4333-8333-333333333333')).toEqual({ valid: true });
+    });
+
+    it('should accept a slug id like the default monster', () => {
+        expect(validateResourceId('monster_1')).toEqual({ valid: true });
+        expect(validateResourceId('npc')).toEqual({ valid: true });
+    });
+
+    it('should reject an id that is not a string', () => {
+        expect(validateResourceId(123).valid).toBe(false);
+        expect(validateResourceId(null).valid).toBe(false);
+        expect(validateResourceId(undefined).valid).toBe(false);
+        expect(validateResourceId({}).valid).toBe(false);
+    });
+
+    it('should reject an empty or whitespace id', () => {
+        expect(validateResourceId('').valid).toBe(false);
+        expect(validateResourceId('   ').valid).toBe(false);
+    });
+
+    it('should reject an id longer than the configured maximum', () => {
+        expect(validateResourceId('a'.repeat(64)).valid).toBe(true);
+        expect(validateResourceId('a'.repeat(65)).valid).toBe(false);
+    });
+
+    it('should reject characters outside the allowed set', () => {
+        expect(validateResourceId('abc def').valid).toBe(false);
+        expect(validateResourceId('abc/def').valid).toBe(false);
+        expect(validateResourceId("'; DROP TABLE characters; --").valid).toBe(false);
+        expect(validateResourceId('abc<script>').valid).toBe(false);
     });
 });
 
@@ -176,5 +213,108 @@ describe('validateCharacterStats', () => {
             valid: false,
             message: 'Health must be a number between 1 and 500',
         });
+    });
+
+    it('should return invalid when stats are NaN', () => {
+        expect(validateCharacterStats(NaN, 50, 250)).toEqual({
+            valid: false,
+            message: 'ATK must be a number between 0 and 100',
+        });
+        expect(validateCharacterStats(50, NaN, 250)).toEqual({
+            valid: false,
+            message: 'INT must be a number between 0 and 100',
+        });
+        expect(validateCharacterStats(50, 50, NaN)).toEqual({
+            valid: false,
+            message: 'Health must be a number between 1 and 500',
+        });
+    });
+
+    it('should return invalid when stats are Infinity', () => {
+        expect(validateCharacterStats(Infinity, 50, 250)).toEqual({
+            valid: false,
+            message: 'ATK must be a number between 0 and 100',
+        });
+        expect(validateCharacterStats(50, 50, -Infinity)).toEqual({
+            valid: false,
+            message: 'Health must be a number between 1 and 500',
+        });
+    });
+
+    it('should return invalid when stats are null', () => {
+        expect(validateCharacterStats(null, 50, 250)).toEqual({
+            valid: false,
+            message: 'ATK must be a number between 0 and 100',
+        });
+        expect(validateCharacterStats(50, 50, null)).toEqual({
+            valid: false,
+            message: 'Health must be a number between 1 and 500',
+        });
+    });
+});
+
+describe('validateCharacterPatch', () => {
+    it('should return valid when a single field is provided', () => {
+        expect(validateCharacterPatch({ name: 'Conan' })).toEqual({ valid: true });
+        expect(validateCharacterPatch({ atk: 60 })).toEqual({ valid: true });
+        expect(validateCharacterPatch({ intelligence: 40 })).toEqual({ valid: true });
+        expect(validateCharacterPatch({ health: 250 })).toEqual({ valid: true });
+    });
+
+    it('should return valid when several fields are provided', () => {
+        expect(
+            validateCharacterPatch({ name: 'Conan', atk: 60, intelligence: 40, health: 250 }),
+        ).toEqual({ valid: true });
+    });
+
+    it('should return invalid when no updatable field is provided', () => {
+        expect(validateCharacterPatch({})).toEqual({
+            valid: false,
+            message: 'At least one field must be provided (name, atk, intelligence, health)',
+        });
+        expect(validateCharacterPatch({ isMonster: true, img: 'hero.png' })).toEqual({
+            valid: false,
+            message: 'At least one field must be provided (name, atk, intelligence, health)',
+        });
+    });
+
+    it('should return invalid when name is provided but out of range', () => {
+        expect(validateCharacterPatch({ name: 'A' })).toEqual({
+            valid: false,
+            message: 'Name must be between 2 and 30 characters',
+        });
+    });
+
+    it('should return invalid when a provided stat is out of range', () => {
+        expect(validateCharacterPatch({ atk: 101 })).toEqual({
+            valid: false,
+            message: 'ATK must be a number between 0 and 100',
+        });
+        expect(validateCharacterPatch({ health: 0 })).toEqual({
+            valid: false,
+            message: 'Health must be a number between 1 and 500',
+        });
+    });
+
+    it('should return invalid when a provided stat is NaN', () => {
+        expect(validateCharacterPatch({ atk: NaN })).toEqual({
+            valid: false,
+            message: 'ATK must be a number between 0 and 100',
+        });
+    });
+
+    it('should return invalid when a provided field is null', () => {
+        expect(validateCharacterPatch({ name: null })).toEqual({
+            valid: false,
+            message: 'Name must be between 2 and 30 characters',
+        });
+        expect(validateCharacterPatch({ health: null })).toEqual({
+            valid: false,
+            message: 'Health must be a number between 1 and 500',
+        });
+    });
+
+    it('should treat explicitly undefined fields as not provided', () => {
+        expect(validateCharacterPatch({ name: 'Conan', atk: undefined })).toEqual({ valid: true });
     });
 });
