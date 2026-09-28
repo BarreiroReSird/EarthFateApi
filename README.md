@@ -293,9 +293,20 @@ until you point it at the new paths:
 | `POST /signup` | `POST /api/v1/auth/signup` |
 | `POST /login` | `POST /api/v1/auth/login` |
 
-The response shape also changed. Errors were `{"error": "..."}` in some places and raw
-objects in others; now every success returns the bare resource and every failure returns
-`{"error": "..."}`. `DELETE` answers `204` with no body.
+The old client was not JSON, so **changing the path is the easy part**. All six calls in
+`src/app/services/logins.service.ts` of [EarthFateGame](https://github.com/BarreiroReSird/EarthFateGame)
+talk to a PHP API that no longer resolves, and they differ in four ways:
+
+| | Old client | This API |
+|---|---|---|
+| Request body | `FormData`, so `multipart/form-data` | JSON only; a multipart body is read as empty and fails validation |
+| Field names | `int`, `vida` | `intelligence`, `health` |
+| Authentication | `username` + `password` re-sent on every write | `Authorization: Bearer <token>`, obtained once from login |
+| Success | `{ "code": 200, "data": ... }` with `Nome`, `Atk`, `Int`, `Vida`, `ID_Player` | the bare resource, e.g. `{ "id", "name", "atk", "intelligence", "health", "isMonster", "img", "idPlayer" }` |
+
+So the cheapest migration is to translate inside `logins.service.ts` and leave the
+components alone. Putting the shim in this API instead would be faster, but then the
+API being demonstrated is not the one that was written.
 
 ---
 
@@ -398,9 +409,18 @@ So that comments stay consistent across the codebase:
 
 ## What's Next
 
+The API side is done and the datastore is the blocker: there is no database that
+answers yet, so every route that reads or writes returns `500` while `GET /health`
+returns `200`. See `TASKS.md`, which leads with what has to run for the game to
+work at all.
+
+- **Connect the Angular client.** This is not a nice-to-have: the game is
+  unusable until the contract described under *Breaking change* is translated in
+  the client
+- A datastore that answers, replacing Supabase
 - Tests for `utils/store.js`, which is only covered by running the API for real
-- API documentation (Swagger/OpenAPI)
-- Frontend integration (Angular)
+- API documentation (OpenAPI spec first; see `TASKS.md` for why serving a Swagger
+  UI from this API is a trade-off rather than a freebie)
 - Production deployment: needs TLS termination, `TRUST_PROXY=1`, and a shared rate
   limit store so the limits hold across instances
 

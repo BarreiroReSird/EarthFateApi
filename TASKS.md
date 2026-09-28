@@ -22,15 +22,36 @@ that answers, so this is a database task, not an API task.
 - [ ] **Seed a few monsters** so the random endpoint shows real data instead of
       the fallback. `monster_1` is referenced by `DEFAULT_MONSTER` and by the
       README, so keep that id.
-- [ ] **Point the game at it.** The frontend is a separate repository
-      (`EarthFateGame`, on GitHub) and is **not** in `D:\Barreiro\Biblioteca`, so
-      it has to be cloned and pointed at `http://localhost:3000`. The old game
-      called verb-based endpoints like `getRandomChar`, so the calls in the
-      frontend need updating to the `/api/v1` routes. Nobody has checked how many
-      there are yet, which is the unknown in this task.
+- [ ] **Point the game at the new API.** The frontend is `D:\Barreiro\Biblioteca\EarthFateGame`
+      (Angular 15, standalone, already cloned). All six calls live in
+      `src/app/services/logins.service.ts` and still point at the dead PHP
+      backend, `http://moreiramoises.pt/server/apis/`. The old contract and the
+      new one do not match in three separate ways, so this is more than a URL
+      change:
+      - **Request format.** The game sends `FormData`, so the body arrives as
+        `multipart/form-data`. The API only parses JSON and urlencoded, so the
+        body would be seen as empty and every write would be a `400`.
+      - **Field names.** The game sends `int` and `vida` where the API expects
+        `intelligence` and `health`, and it re-sends `username`/`password` on
+        every create and upgrade call where the API expects a JWT in the
+        `Authorization` header.
+      - **Response envelope.** The game reads `data['code'] == 200` and then
+        `data['data']`, with Portuguese PascalCase fields inside
+        (`Nome`, `Atk`, `Int`, `Vida`, `ID_Player`) and a `Personagens[0]`
+        array. The API returns a flat resource on success and `{"error": "..."}`
+        on failure.
+- [ ] **Cheapest path: translate in the client service, not in the API.** Rewrite
+      `logins.service.ts` to speak the new contract and have it return the old
+      shape, so the four components that do the heavy field access stay
+      untouched. This keeps the API JSON-only and consistent, which is what
+      actually gets demonstrated. Adding the shim to the API instead would be
+      faster still, but then the API being shown is not the one that was written.
 - [ ] **Set `CORS_ORIGIN`** to the game's dev origin (`http://localhost:4200`) or
       the browser will block every request. This is already the value in
       `.env.example`; the real one goes in `.env`, which is not committed.
+- [ ] `isMonset` is a typo in the game, and the old PHP API returned it that way
+      too (`IsMonset`). The new API spells it `isMonster`. Worth fixing while
+      the code is open, or at least knowing why the name is inconsistent.
 
 ### What is acceptable to skip for a demo
 
