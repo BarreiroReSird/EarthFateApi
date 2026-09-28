@@ -3,9 +3,11 @@ jest.mock('../utils/store');
 const request = require('supertest');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const app = require('../server');
-const { JWT_SECRET, DEFAULT_MONSTER } = require('../config');
+const { createApp } = require('../server');
+const { JWT_SECRET, RATE_LIMITS, DEFAULT_MONSTER } = require('../config');
 const store = require('../utils/store');
+
+const app = createApp();
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -38,11 +40,7 @@ describe('GET /health', () => {
         const res = await request(app).get('/health');
 
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({
-            status: 'ok',
-            uptime: expect.any(Number),
-            timestamp: expect.any(String),
-        });
+        expect(res.body).toEqual({ status: 'ok' });
     });
 
     it('should send the security headers added by helmet', async () => {
@@ -51,6 +49,74 @@ describe('GET /health', () => {
         expect(res.headers['x-content-type-options']).toBe('nosniff');
         expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
         expect(res.headers['x-dns-prefetch-control']).toBe('off');
+    });
+
+    it('should not send HSTS outside production', async () => {
+        const res = await request(app).get('/health');
+
+        expect(res.headers['strict-transport-security']).toBeUndefined();
+    });
+
+    it('should report a rate limit budget on every request', async () => {
+        const res = await request(app).get('/health');
+
+        expect(res.headers['ratelimit-policy']).toMatch(/^\d+;w=\d+$/);
+    });
+
+    it('should hold auth requests to a stricter limit than the rest of the API', async () => {
+        const authRes = await request(app).post('/api/v1/auth/login').send({});
+        const healthRes = await request(app).get('/health');
+
+        const authLimit = Number(authRes.headers['ratelimit-policy'].split(';')[0]);
+        const generalLimit = Number(healthRes.headers['ratelimit-policy'].split(';')[0]);
+
+        expect(authLimit).toBeLessThan(generalLimit);
+    });
+});
+
+describe('rate limiting', () => {
+    // Each app gets its own counter, so a low limit can be used without
+    // affecting the other tests.
+    const appWithLimits = ({ general, auth }) =>
+        createApp({
+            rateLimits: {
+                GENERAL: { ...RATE_LIMITS.GENERAL, MAX_REQUESTS: general },
+                AUTH: { ...RATE_LIMITS.AUTH, MAX_REQUESTS: auth },
+            },
+        });
+
+    it('should answer 429 once the auth limit is passed', async () => {
+        const limitedApp = appWithLimits({ general: 100, auth: 2 });
+        const login = () =>
+            request(limitedApp)
+                .post('/api/v1/auth/login')
+                .send({ username: 'testuser', password: 'password123' });
+
+        await login();
+        await login();
+        const res = await login();
+
+        expect(res.status).toBe(429);
+        expect(res.body).toEqual({
+            error: 'Too many authentication attempts, please try again later.',
+        });
+    });
+
+    it('should answer 429 for the whole API once the general limit is passed', async () => {
+        const limitedApp = appWithLimits({ general: 1, auth: 100 });
+
+        await request(limitedApp).get('/health');
+        const res = await request(limitedApp).get('/health');
+
+        expect(res.status).toBe(429);
+        expect(res.body).toEqual({ error: 'Too many requests, please try again later.' });
+    });
+
+    it('should not start counting before the limiter is reached', async () => {
+        const limitedApp = appWithLimits({ general: 2, auth: 100 });
+
+        expect((await request(limitedApp).get('/health')).status).toBe(200);
+        expect((await request(limitedApp).get('/health')).status).toBe(200);
     });
 });
 
@@ -321,7 +387,7 @@ describe('PATCH /api/v1/characters/:id', () => {
         expect(store.findCharacter).not.toHaveBeenCalled();
     });
 
-    it('should return 403 when the character belongs to someone else', async () => {
+    it('should answer 404, not 403, when the character belongs to someone else', async () => {
         store.findCharacter.mockResolvedValue(character);
 
         const res = await request(app)
@@ -329,9 +395,23 @@ describe('PATCH /api/v1/characters/:id', () => {
             .set(...authHeader(OTHER_USER_ID))
             .send({ atk: 75 });
 
-        expect(res.status).toBe(403);
-        expect(res.body).toEqual({ error: 'You do not have permission to edit this character' });
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ error: 'Character not found' });
         expect(store.updateCharacter).not.toHaveBeenCalled();
+    });
+
+    it('should ignore isMonster in the body', async () => {
+        store.createCharacter.mockResolvedValue(character);
+
+        const res = await request(app)
+            .post('/api/v1/characters')
+            .set(...authHeader())
+            .send({ name: 'Conan', atk: 60, intelligence: 40, health: 250, isMonster: true });
+
+        expect(res.status).toBe(201);
+        expect(store.createCharacter).toHaveBeenCalledWith(
+            expect.objectContaining({ isMonster: false }),
+        );
     });
 });
 
@@ -349,15 +429,15 @@ describe('DELETE /api/v1/characters/:id', () => {
         expect(store.deleteCharacter).toHaveBeenCalledWith(CHAR_ID);
     });
 
-    it('should return 403 when the character belongs to someone else', async () => {
+    it('should answer 404, not 403, when the character belongs to someone else', async () => {
         store.findCharacter.mockResolvedValue(character);
 
         const res = await request(app)
             .delete(`/api/v1/characters/${CHAR_ID}`)
             .set(...authHeader(OTHER_USER_ID));
 
-        expect(res.status).toBe(403);
-        expect(res.body).toEqual({ error: 'You do not have permission to delete this character' });
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ error: 'Character not found' });
         expect(store.deleteCharacter).not.toHaveBeenCalled();
     });
 

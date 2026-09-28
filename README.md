@@ -57,6 +57,20 @@ cp .env.example .env
 | `CORS_ORIGIN` | Allowed origins for CORS, comma separated (default: `*`) |
 | `RATE_LIMIT_GENERAL_MAX` | Requests per 15 min across the whole API (default: 300) |
 | `RATE_LIMIT_AUTH_MAX` | Requests per 15 min on `/auth` (default: 10) |
+| `TRUST_PROXY` | Number of reverse proxies in front of the API (default: `false`, set to `1` on Heroku/Render/Cloudflare/nginx) |
+| `HSTS_INCLUDE_SUBDOMAINS` | Apply HSTS to subdomains too (default: `false`) |
+
+> **`TRUST_PROXY` matters more than it looks.** Express only reads the client IP from
+> `X-Forwarded-For` for the proxy hops it trusts. Behind a reverse proxy with this set to
+> `false`, every visitor shares a single rate-limit bucket, so the 11th login attempt from
+> anyone blocks everyone for 15 minutes. Set it to the exact number of proxies, and never to
+> `true` — that lets a client send a fake header and bypass the limits entirely.
+>
+> `express-rate-limit` is configured to validate this, and it prints
+> `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` on the first request when the header arrives on an app
+> that does not trust its proxy (and `ERR_ERL_PERMISSIVE_TRUST_PROXY` if the value is `true`).
+> Note that it logs the error but still serves the request, so treat that line in the logs as a
+> real configuration bug, not a warning you can ignore.
 
 Get these from **Supabase Dashboard > Settings > API**.
 
@@ -115,7 +129,7 @@ All routes are served under the versioned prefix `/api/v1`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/health` | No | Liveness probe (status, uptime, timestamp) |
+| `GET` | `/health` | No | Liveness probe, returns `{"status":"ok"}` and nothing else |
 
 ### Authentication
 
@@ -143,11 +157,11 @@ All routes are served under the versioned prefix `/api/v1`.
 | `atk` | number | Yes | 0–100 |
 | `intelligence` | number | Yes | 0–100 |
 | `health` | number | Yes | 1–500 |
-| `isMonster` | boolean | No | Defaults to `false` |
+| `isMonster` | boolean | No | Ignored, always `false`. Monsters are seeded in the database |
 
 **`PATCH /api/v1/characters/:id` request body:** every field is optional, but at least one of
 `name`, `atk`, `intelligence`, `health` must be present. Fields that are not sent stay unchanged.
-`isMonster` and `img` are never editable through this endpoint.
+`id`, `idPlayer`, `isMonster` and `img` are never editable through this endpoint.
 
 **`POST /api/v1/auth/signup` and `/api/v1/auth/login` request body:**
 
@@ -193,9 +207,13 @@ resource or an unexpected failure:
 ```
 
 **Status codes:** `200` OK · `201` Created · `204` No Content (delete) · `400` validation error,
-malformed id or malformed JSON · `401` missing/invalid token · `403` not the owner ·
-`404` unknown route or character · `409` username already taken · `413` payload above the 10kb
-limit · `429` rate limit reached · `500` internal error (details only in the server logs).
+malformed id or malformed JSON · `401` missing/invalid token · `404` unknown route, unknown
+character, **or a character owned by somebody else** · `409` username already taken · `413` payload
+above the 10kb limit · `429` rate limit reached · `500` internal error (details only in the server
+logs).
+
+Note the deliberate choice on `404`: editing or deleting someone else's character answers
+`404`, not `403`, so the API never confirms that a character you cannot see exists.
 
 ---
 
@@ -213,7 +231,8 @@ Routes ──validation──▶ utils/store.js ──▶ Supabase
 API/
 ├── config/
 │   └── index.js              # Central application configuration & environmental constants
-├── server.js                 # Entry point: wires middleware, routes and error handling
+├── server.js                 # Entry point: createApp() wires middleware, routes
+│                             #   and error handling, startServer() listens
 ├── routes/                   # URL, method and permissions. All the business rules live here
 │   ├── auth.js               # /auth/signup and /auth/login
 │   ├── characters.js         # RESTful character resource
@@ -227,16 +246,37 @@ API/
 │   ├── logger.test.js
 │   └── supabase.js           # Supabase client connection
 ├── tests/
-│   ├── setupEnv.js           # Relaxes the rate limits while testing
+│   ├── setupEnv.js           # Sets the test environment, ignoring your real .env
 │   └── api.test.js           # HTTP tests with the database mocked
 └── middleware/
     ├── authMiddleware.js     # JWT Bearer token authentication middleware
     ├── notFound.js           # 404 JSON response for unmatched routes
     └── errorHandler.js       # Central error handling middleware
 ```
-    ├── notFound.js           # 404 JSON response for unmatched routes
-    └── errorHandler.js       # Global error handling middleware
-```
+
+---
+
+## Breaking change: the move to `/api/v1`
+
+The original game called the old verb-based endpoints. They are gone, replaced by a
+versioned REST resource. If you have an old client (the Angular app in
+[EarthFateGame](https://github.com/BarreiroReSird/EarthFateGame)), it will stop working
+until you point it at the new paths:
+
+| Old endpoint | New endpoint |
+|--------------|--------------|
+| `GET /getRandomChar` | `GET /api/v1/characters/random` |
+| `GET /getChars/:playerId` | `GET /api/v1/characters` (JWT, no player id in the path) |
+| `POST /createCharacter` | `POST /api/v1/characters` |
+| `GET /getChar/:id` | `GET /api/v1/characters/:id` |
+| `POST /updateChar/:id` | `PATCH /api/v1/characters/:id` (send only the fields to change) |
+| `POST /deleteChar/:id` | `DELETE /api/v1/characters/:id` |
+| `POST /signup` | `POST /api/v1/auth/signup` |
+| `POST /login` | `POST /api/v1/auth/login` |
+
+The response shape also changed. Errors were `{"error": "..."}` in some places and raw
+objects in others; now every success returns the bare resource and every failure returns
+`{"error": "..."}`. `DELETE` answers `204` with no body.
 
 ---
 
@@ -274,21 +314,30 @@ API/
   so no route builds its own error response
 - Liveness endpoint (`GET /health`) and JSON `404` responses for unmatched routes
 - `Location` header on `201 Created` pointing at the new resource
-- Security headers via `helmet`, with HSTS in production
-- Rate limiting across the whole API plus a stricter limit on the auth endpoints
+- Security headers via `helmet`, with HSTS in production and a configurable
+  `includeSubDomains`
+- Rate limiting across the whole API plus a stricter limit on the auth endpoints,
+  with a validation that refuses to run if the proxy configuration would make the
+  limits meaningless (`TRUST_PROXY`)
 - CORS restricted to a configurable list of origins
 - Central configuration module (`API/config/index.js`) for application constants
+- `createApp()` factory, so a test can build the API with different settings
+  (that is how the rate limit tests work) instead of reloading the module
 - Structured logger utility (`API/utils/logger.js`)
 - Response compression middleware (`compression`)
 - User registration and login with bcrypt password hashing and JWT token authentication
 - Dedicated `authMiddleware` for protecting endpoints via HTTP Bearer tokens
 - Payload size limiting (10kb) to prevent DoS attacks
 - Optimized database pagination for random character generation
-- Owner permission checks on character edits and deletes
+- Owner permission checks on character edits and deletes, answering `404` instead of
+  `403` so the API does not reveal other players' characters
+- Server-controlled `isMonster` and `img` fields, so no field outside the documented
+  set can be written by a caller
 - Persistent data storage with Supabase (PostgreSQL)
 - ESLint + Prettier for code quality
-- Test suite (Jest + supertest): validators, logger and 40 HTTP tests with the
-  database mocked, covering auth, permissions, validation and error responses
+- Test suite (Jest + supertest): validators, logger and HTTP tests with the database
+  mocked, covering auth, permissions, validation, rate limiting and error responses.
+  The tests set their own environment, so they never read your real `.env`
 - Environment variable configuration (.env and .env.example)
 
 ## What's Next
@@ -296,5 +345,6 @@ API/
 - Tests for `utils/store.js`, which is only covered by running the API for real
 - API documentation (Swagger/OpenAPI)
 - Frontend integration (Angular)
-- Production deployment (needs a shared rate limit store and TLS termination)
+- Production deployment: needs TLS termination, `TRUST_PROXY=1`, and a shared rate
+  limit store so the limits hold across instances
 

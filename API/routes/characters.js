@@ -28,9 +28,11 @@ const findCharacterOrFail = async (id) => {
     return character;
 };
 
-const assertOwnership = (character, userId, action) => {
+// Answering 404 instead of 403 keeps the API from confirming that a character
+// owned by someone else exists.
+const assertOwnership = (character, userId) => {
     if (character.idPlayer !== userId) {
-        throw AppError.forbidden(`You do not have permission to ${action} this character`);
+        throw AppError.notFound('Character not found');
     }
 };
 
@@ -47,7 +49,7 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 router.post('/', authMiddleware, async (req, res) => {
-    const { name, atk, intelligence, health, isMonster } = req.body;
+    const { name, atk, intelligence, health } = req.body;
 
     assertValid(validateCharacterName(name));
     assertValid(validateCharacterStats(atk, intelligence, health));
@@ -58,7 +60,8 @@ router.post('/', authMiddleware, async (req, res) => {
         atk,
         intelligence,
         health,
-        isMonster: Boolean(isMonster),
+        // Monsters are seeded in the database, never chosen by the caller.
+        isMonster: false,
         img: 'hero.png',
         idPlayer: req.user.id,
     });
@@ -78,7 +81,7 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     assertValid(validateCharacterPatch({ name, atk, intelligence, health }));
 
     const character = await findCharacterOrFail(req.params.id);
-    assertOwnership(character, req.user.id, 'edit');
+    assertOwnership(character, req.user.id);
 
     const fields = {};
     if (name !== undefined) fields.name = name.trim();
@@ -93,7 +96,7 @@ router.patch('/:id', authMiddleware, async (req, res) => {
 
 router.delete('/:id', authMiddleware, async (req, res) => {
     const character = await findCharacterOrFail(req.params.id);
-    assertOwnership(character, req.user.id, 'delete');
+    assertOwnership(character, req.user.id);
 
     await store.deleteCharacter(req.params.id);
 

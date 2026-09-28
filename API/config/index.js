@@ -21,11 +21,31 @@ const parseMaxRequests = (envKey, fallback) => {
     return !isNaN(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+// Number of reverse proxies in front of the app. It has to be right, because
+// Express reads the client IP from X-Forwarded-For only for the hops it trusts.
+// Too low and every visitor shares one rate-limit bucket; `true` trusts the
+// header from anyone and lets a client forge its own IP to bypass the limits.
+const parseTrustProxy = () => {
+    const raw = process.env.TRUST_PROXY;
+    if (raw === undefined || raw === '' || raw === 'false') return false;
+
+    const parsed = parseInt(raw, 10);
+    return !isNaN(parsed) && parsed >= 0 ? parsed : false;
+};
+
+const parseBooleanEnv = (envKey, fallback) => {
+    const raw = process.env[envKey];
+    if (raw === undefined || raw === '') return fallback;
+
+    return raw.toLowerCase() === 'true';
+};
+
 module.exports = {
     PORT: process.env.PORT || 3000,
     IS_PRODUCTION: isProduction,
     API_PREFIX: '/api/v1',
     CORS_ORIGIN: process.env.CORS_ORIGIN,
+    TRUST_PROXY: parseTrustProxy(),
     JWT_SECRET: process.env.JWT_SECRET || 'super_secret_earth_fate_key_change_in_production',
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
     BCRYPT_SALT_ROUNDS: saltRounds,
@@ -72,5 +92,8 @@ module.exports = {
             MAX_REQUESTS: parseMaxRequests('RATE_LIMIT_AUTH_MAX', 10),
         },
     },
-    HSTS: { MAX_AGE: 15552000, INCLUDE_SUBDOMAINS: true },
+    HSTS: {
+        MAX_AGE: 15552000,
+        INCLUDE_SUBDOMAINS: parseBooleanEnv('HSTS_INCLUDE_SUBDOMAINS', false),
+    },
 };

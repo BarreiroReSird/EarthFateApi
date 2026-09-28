@@ -1,3 +1,6 @@
+// The message is sent to the client verbatim by the error handler, so it must
+// always be a short literal written here. Never pass a database message or
+// anything taken from an error object: that would leak internals.
 class AppError extends Error {
     constructor(statusCode, message) {
         super(message);
