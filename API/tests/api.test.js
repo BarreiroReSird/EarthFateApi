@@ -500,3 +500,34 @@ describe('error handling', () => {
         expect(JSON.stringify(res.body)).not.toMatch(/postgres|secret|10\.0\.0\.5/);
     });
 });
+
+describe('framework assumptions', () => {
+    it('should run on Express 5, which is what makes the error format work', () => {
+        // Every route handler in this project is `async` and throws to report a
+        // problem, instead of building a response with res.status().json(). The
+        // rejected promise has to reach middleware/errorHandler.js for the
+        // { "error": "..." } shape to exist at all.
+        //
+        // Express 5 forwards that rejection on its own. Express 4 does not: the
+        // request would hang until it timed out, the error would never be logged,
+        // and every failure in this API would come back as an empty 200-less
+        // timeout. That is a silent break, not a loud one, hence this test.
+        //
+        // If it fails, the fix is either to stay on Express 5 or to wrap every
+        // handler to forward errors by hand.
+        const major = Number(require('express/package.json').version.split('.')[0]);
+
+        expect(major).toBeGreaterThanOrEqual(5);
+    });
+
+    it('should report a rejected async handler through the error handler', async () => {
+        // The same mechanism as above, proven through a real request: a plain
+        // Error rejected inside the async route handler comes out as a 500.
+        store.findCharacter.mockRejectedValue(new Error('database is down'));
+
+        const res = await request(app).get(`/api/v1/characters/${CHAR_ID}`);
+
+        expect(res.status).toBe(500);
+        expect(res.body).toEqual({ error: 'An internal error occurred, please try again later' });
+    });
+});

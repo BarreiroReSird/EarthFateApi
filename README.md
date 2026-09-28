@@ -54,7 +54,7 @@ cp .env.example .env
 | `SUPABASE_KEY` | Your Supabase anon/public key |
 | `JWT_SECRET` | Secret key used for signing JWT tokens |
 | `BCRYPT_SALT_ROUNDS` | Number of salt rounds for bcrypt hashing |
-| `CORS_ORIGIN` | Allowed origins for CORS, comma separated (default: `*`) |
+| `CORS_ORIGIN` | Allowed origins for CORS, comma separated. Required in production: a `*` wildcard makes the API refuse to start |
 | `RATE_LIMIT_GENERAL_MAX` | Requests per 15 min across the whole API (default: 300) |
 | `RATE_LIMIT_AUTH_MAX` | Requests per 15 min on `/auth` (default: 10) |
 | `TRUST_PROXY` | Number of reverse proxies in front of the API (default: `false`, set to `1` on Heroku/Render/Cloudflare/nginx) |
@@ -215,6 +215,24 @@ logs).
 Note the deliberate choice on `404`: editing or deleting someone else's character answers
 `404`, not `403`, so the API never confirms that a character you cannot see exists.
 
+### Why the error format works: Express 5
+
+The route handlers are all `async` and report problems by throwing, rather than building a
+response themselves:
+
+```js
+// routes/characters.js
+assertValid(validateCharacterName(name)); // throws AppError.badRequest(...)
+```
+
+Those rejections only reach `middleware/errorHandler.js` because this project runs on
+**Express 5**, which forwards a rejected promise from a handler to the error middleware on
+its own. On Express 4 it would not: the request would hang until it timed out, nothing
+would be logged, and the whole `{ "error": "..." }` shape would quietly disappear.
+
+That is why you will not find an `asyncHandler` wrapper anywhere here, and it is also why
+there is a test that fails if the project is ever downgraded to Express 4.
+
 ---
 
 ## Project Structure
@@ -302,6 +320,36 @@ objects in others; now every success returns the bare resource and every failure
 
 ---
 
+## Comment Conventions
+
+So that comments stay consistent across the codebase:
+
+- **English**, same as the code and the rest of these docs. The private notes
+  under `private/` are in Portuguese; the source is not.
+- **Block comments above the code**, never trailing on the same line. There is
+  not a single line-by-line comment in the project.
+- **Explain the *why*, never the *what*.** The code already says what it does.
+  A comment earns its place only when it carries a business rule, a technical
+  constraint, a trade-off, or context that is not visible in the code.
+- **No redundant comments.** `i++ // increments i` is noise.
+- **No commented-out code.** Delete it and let Git keep the history.
+- **Document a public function when its contract is not obvious from its
+  signature** — typically because it throws on some paths and returns normally
+  on others, or because its return shape is not its input's. The error contract
+  in `utils/store.js` is the case that earns JSDoc here: it decides which
+  Supabase errors become a `null` and which ones become a 500, and neither is
+  visible from the parameter list. A validator that takes a string and returns
+  `{ valid, message }` says all of that on its own. Endpoints are documented
+  under [Endpoints](#endpoints) with auth, body, status codes and examples.
+- **No TODOs in the source.** Open work lives in `TASKS.md` with the reason
+  attached, which is more useful than a marker in a file.
+- **No agent or tool attribution in the source.** If the use of a tool is worth
+  recording, it belongs in the commit, the PR or this file, not in a comment.
+- **When the code changes, the comment changes with it.** A stale comment is
+  worse than no comment, because it is trusted and wrong.
+
+---
+
 ## What's Been Built
 
 - RESTful API under a versioned prefix (`/api/v1`) with resource-based paths and no verbs
@@ -309,7 +357,8 @@ objects in others; now every success returns the bare resource and every failure
 - Partial updates via `PATCH` with per-field validation (non-updatable fields are ignored)
 - Consistent responses: successful requests return the bare resource, every error
   returns `{ "error": "..." }`
-- Input validation for bodies, path ids and query values, before any business logic runs
+- Input validation for request bodies and path ids, before any business logic
+  runs (the API takes no query parameters today)
 - Centralized error handling with an `AppError` type carrying the HTTP status code,
   so no route builds its own error response
 - Liveness endpoint (`GET /health`) and JSON `404` responses for unmatched routes

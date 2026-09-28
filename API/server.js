@@ -78,8 +78,12 @@ const createApp = ({ rateLimits = RATE_LIMITS } = {}) => {
             validate: { trustProxy: true, xForwardedForHeader: true },
         });
 
-    // The auth limiter is registered after the general one, so auth requests are
-    // counted against both and the stricter of the two is the one that answers.
+    // An /auth request runs through both limiters in series: each one counts
+    // the request, and whichever exceeds its limit first is the one that
+    // answers, with its own message. With the defaults the auth limit (10) is
+    // the lower of the two, so that is the message a user actually sees. The
+    // general limiter is registered first, so it would win if it were the
+    // stricter one.
     app.use(buildLimiter(rateLimits.GENERAL, 'Too many requests, please try again later.'));
     app.use(
         `${API_PREFIX}/auth`,

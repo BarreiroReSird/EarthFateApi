@@ -1,5 +1,11 @@
 const { LIMITS } = require('../config');
 
+// Every validator here returns { valid, message } instead of throwing, so a
+// caller can collect several checks and decide which error to report first.
+// routes/characters.js has the assertValid helper that turns a result back into
+// an AppError. A new validator must return, never throw, or assertValid will not
+// see it and the request will answer 500 instead of 400.
+
 const validateCredentials = (username, password) => {
     const { MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH } =
         LIMITS.USER_CREDENTIALS;
@@ -23,6 +29,12 @@ const validateCredentials = (username, password) => {
     return { valid: true };
 };
 
+// Deliberately slugs, not UUIDs. The seeded rows in Supabase have ids like
+// "monster_1", and characters are created here with crypto.randomUUID(). Both
+// shapes have to keep working, so this allows letters, numbers, hyphen and
+// underscore. Tightening it to a strict UUID pattern would 400 the seeded
+// monsters. If the id column in Supabase turns out to be a uuid type, the
+// seeded slugs have to be migrated instead of this pattern being narrowed.
 const RESOURCE_ID_PATTERN = new RegExp(`^[A-Za-z0-9_-]{1,${LIMITS.RESOURCE_ID.MAX_LENGTH}}$`);
 
 const validateResourceId = (id) => {
@@ -51,6 +63,10 @@ const validateCharacterName = (name) => {
     return { valid: true };
 };
 
+// Number.isFinite, not typeof alone, and the reason is NaN specifically:
+// typeof NaN === 'number', and every comparison with NaN is false, so a range
+// check on its own (value < min || value > max) lets NaN straight through.
+// Infinity is already caught by the range comparison, NaN is not.
 const validateStat = (label, value, min, max) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
         return { valid: false, message: `${label} must be a number between ${min} and ${max}` };

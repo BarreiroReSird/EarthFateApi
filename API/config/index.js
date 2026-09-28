@@ -12,6 +12,16 @@ if (
     );
 }
 
+// A wildcard in production would let any site on the internet call this API
+// from a browser on behalf of a logged-in user, so it fails here rather than
+// shipping quietly. A read-only public API would be the exception, and this one
+// is not: everything except /health and /characters/random needs a token.
+if (isProduction && (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN.trim() === '*')) {
+    throw new Error(
+        'FATAL SECURITY ERROR: CORS_ORIGIN must list the allowed origins in production, e.g. https://your-frontend.com. A wildcard ("*") is not allowed!',
+    );
+}
+
 const parsedSaltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10);
 const saltRounds =
     !isNaN(parsedSaltRounds) && parsedSaltRounds >= 10 ? parsedSaltRounds : isProduction ? 12 : 10;
