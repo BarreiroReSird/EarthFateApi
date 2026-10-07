@@ -29,12 +29,12 @@ const validateCredentials = (username, password) => {
     return { valid: true };
 };
 
-// Deliberately slugs, not UUIDs. The seeded rows in Supabase have ids like
-// "monster_1", and characters are created here with crypto.randomUUID(). Both
-// shapes have to keep working, so this allows letters, numbers, hyphen and
-// underscore. Tightening it to a strict UUID pattern would 400 the seeded
-// monsters. If the id column in Supabase turns out to be a uuid type, the
-// seeded slugs have to be migrated instead of this pattern being narrowed.
+// Deliberately slugs, not UUIDs. The seeded rows have ids like "monster_1",
+// and characters are created here with crypto.randomUUID(). Both shapes have
+// to keep working, so this allows letters, numbers, hyphen and underscore.
+// Tightening it to a strict UUID pattern would 400 the seeded monsters. The
+// id column is text, so nothing at the storage layer forces one shape or the
+// other and this pattern is the only thing deciding it.
 const RESOURCE_ID_PATTERN = new RegExp(`^[A-Za-z0-9_-]{1,${LIMITS.RESOURCE_ID.MAX_LENGTH}}$`);
 
 const validateResourceId = (id) => {

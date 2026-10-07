@@ -6,6 +6,13 @@ node_modules/
 .env.*
 !.env.example
 
+# Google service account keys. .env is ignored above, but the downloaded key
+# file is a .json with any name, so it needs its own rule.
+*service-account*.json
+credentials.json
+*.pem
+*.key
+
 # Runtime logs and process files
 *.log
 npm-debug.log*

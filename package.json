@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node API/server.js",
     "dev": "nodemon API/server.js",
+    "seed": "node API/scripts/seed.js",
     "lint": "eslint API/",
     "lint:fix": "eslint API/ --fix",
     "format": "prettier --write \"API/**/*.js\"",
@@ -27,13 +28,14 @@
   },
   "homepage": "https://github.com/BarreiroReSird/EarthFateApi#readme",
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.3",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
+    "google-auth-library": "^11.1.0",
+    "google-spreadsheet": "^5.3.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3"
   },

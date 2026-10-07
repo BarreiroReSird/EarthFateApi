@@ -15,9 +15,9 @@ The goal is to rebuild a clean, maintainable backend for that game and keep it u
 ## Setup
 
 ### Prerequisites
-- Node.js (v18 or higher)
+- Node.js (v22 or higher)
 - npm
-- A Supabase project (free tier works)
+- A Google account: the database is a Google Sheet (see `TASKS.md` for setup instructions)
 
 ### Installation
 
@@ -50,8 +50,10 @@ cp .env.example .env
 | Variable | Description |
 |----------|-------------|
 | `PORT` | Server port (default: 3000) |
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_KEY` | Your Supabase anon/public key |
+| `GOOGLE_SHEET_ID` | Id of the spreadsheet holding the rows (the part of its URL between `/d/` and `/edit`) |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | `client_email` of the service account that may read and write the sheet |
+| `GOOGLE_PRIVATE_KEY` | `private_key` of that service account, with the `\n` escapes kept as they are |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Alternative: the whole key file on one line. Wins over the two above when set |
 | `JWT_SECRET` | Secret key used for signing JWT tokens |
 | `BCRYPT_SALT_ROUNDS` | Number of salt rounds for bcrypt hashing |
 | `CORS_ORIGIN` | Allowed origins for CORS, comma separated. Required in production: a `*` wildcard makes the API refuse to start |
@@ -73,7 +75,9 @@ cp .env.example .env
 > Note that it logs the error but still serves the request, so treat that line in the logs as a
 > real configuration bug, not a warning you can ignore.
 
-Get these from **Supabase Dashboard > Settings > API**.
+Those four come from a Google service account key. See `TASKS.md` for
+instructions on creating one, sharing the spreadsheet with it, and what to do
+when the log says something is missing.
 
 ### Available Scripts
 
@@ -81,6 +85,7 @@ Get these from **Supabase Dashboard > Settings > API**.
 |---------|-------------|
 | `npm start` | Run the API |
 | `npm run dev` | Run with auto-restart (nodemon) |
+| `npm run seed` | Insert the monsters into the spreadsheet (safe to re-run) |
 | `npm test` | Run the test suite with Jest |
 | `npm run test:coverage` | Run tests and print a coverage report |
 | `npm run lint` | Run ESLint check |
@@ -241,7 +246,7 @@ there is a test that fails if the project is ever downgraded to Express 4.
 Each file has one job, and the routes never talk to the database directly:
 
 ```
-Routes ──validation──▶ utils/store.js ──▶ Supabase
+Routes ──validation──▶ utils/store.js ──▶ Google Sheets
    │
    └──errors──▶ middleware/errorHandler.js
 ```
@@ -258,12 +263,13 @@ API/
 │   └── health.js             # Liveness probe
 ├── utils/
 │   ├── appError.js           # Error carrying an HTTP status code, thrown by the routes
-│   ├── store.js              # Database access, the only file that queries Supabase
+│   ├── store.js              # Database access, the only file that talks to Google Sheets
 │   ├── validators.js         # Input validation (credentials, ids, names, stats, patches)
 │   ├── validators.test.js    # Unit tests for the validators
 │   ├── logger.js             # Structured logging utility
-│   ├── logger.test.js
-│   └── supabase.js           # Supabase client connection
+│   └── logger.test.js
+├── scripts/
+│   └── seed.js               # Writes the monsters into the spreadsheet (npm run seed)
 ├── tests/
 │   ├── setupEnv.js           # Sets the test environment, ignoring your real .env
 │   └── api.test.js           # HTTP tests with the database mocked
@@ -319,7 +325,8 @@ API being demonstrated is not the one that was written.
 - bcrypt - Password hashing
 - jsonwebtoken - JWT token authentication
 - express-rate-limit - Rate limiting for API endpoints
-- @supabase/supabase-js - Supabase client for database access
+- google-spreadsheet - Reads and writes the spreadsheet
+- google-auth-library - Signs the service account token for Google
 - dotenv - Load environment variables from .env
 
 ## Dev Dependencies
@@ -349,8 +356,9 @@ So that comments stay consistent across the codebase:
   signature** — typically because it throws on some paths and returns normally
   on others, or because its return shape is not its input's. The error contract
   in `utils/store.js` is the case that earns JSDoc here: it decides which
-  Supabase errors become a `null` and which ones become a 500, and neither is
-  visible from the parameter list. A validator that takes a string and returns
+  failures become a `null` (no such row, which is an answer) and which become a
+  500 (the spreadsheet could not be read), and neither is visible from the
+  parameter list. A validator that takes a string and returns
   `{ valid, message }` says all of that on its own. Endpoints are documented
   under [Endpoints](#endpoints) with auth, body, status codes and examples.
 - **No TODOs in the source.** Open work lives in `TASKS.md` with the reason
@@ -395,12 +403,14 @@ So that comments stay consistent across the codebase:
 - User registration and login with bcrypt password hashing and JWT token authentication
 - Dedicated `authMiddleware` for protecting endpoints via HTTP Bearer tokens
 - Payload size limiting (10kb) to prevent DoS attacks
-- Optimized database pagination for random character generation
+- Random character with a single read of the whole tab, falling back to a
+  built-in monster when the sheet is empty
 - Owner permission checks on character edits and deletes, answering `404` instead of
   `403` so the API does not reveal other players' characters
 - Server-controlled `isMonster` and `img` fields, so no field outside the documented
   set can be written by a caller
-- Persistent data storage with Supabase (PostgreSQL)
+- Persistent data storage in a Google Sheet, with both tabs and their column
+  headers created on first connection and verified on every boot
 - ESLint + Prettier for code quality
 - Test suite (Jest + supertest): validators, logger and HTTP tests with the database
   mocked, covering auth, permissions, validation, rate limiting and error responses.
@@ -409,18 +419,17 @@ So that comments stay consistent across the codebase:
 
 ## What's Next
 
-The API side is done and the datastore is the blocker: there is no database that
-answers yet, so every route that reads or writes returns `500` while `GET /health`
-returns `200`. See `TASKS.md`, which leads with what has to run for the game to
-work at all.
+The datastore now answers: `API/utils/store.js` reads and writes a Google Sheet,
+so signup, login and every character route return real rows once the Google Sheet
+setup is complete. `GET /health` returns `200` regardless, which is why it is
+not proof that the database works.
 
-- **Connect the Angular client.** This is not a nice-to-have: the game is
-  unusable until the contract described under *Breaking change* is translated in
-  the client
-- A datastore that answers, replacing Supabase
-- Tests for `utils/store.js`, which is only covered by running the API for real
-- API documentation (OpenAPI spec first; see `TASKS.md` for why serving a Swagger
-  UI from this API is a trade-off rather than a freebie)
-- Production deployment: needs TLS termination, `TRUST_PROXY=1`, and a shared rate
-  limit store so the limits hold across instances
+See `TASKS.md` for the full list of what is left to do, including:
+- **Connect the Angular client** - the game is unusable until the contract described
+  under *Breaking change* is translated in the client
+- **Add `config/env.js` validation** - to fail early if environment variables are missing
+- **Test `utils/store.js` for real** - the HTTP tests mock it, so the queries never
+  actually ran
+- **API documentation (OpenAPI spec)** - see `TASKS.md` for details
+- **And more** - security reviews, user profile endpoints, deployment, etc.
 

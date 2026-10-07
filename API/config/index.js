@@ -107,6 +107,15 @@ module.exports = {
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
     BCRYPT_SALT_ROUNDS: saltRounds,
     EXPRESS_JSON_LIMIT: '10kb',
+    // Google Sheets is the datastore: the spreadsheet holds the rows and
+    // utils/store.js is the only file that knows how to talk to it. The id is
+    // the middle segment of the spreadsheet URL, and the credentials come from
+    // a service account key (either the two fields copied out of it, or the
+    // whole JSON pasted on one line).
+    GOOGLE_SHEET_ID: process.env.GOOGLE_SHEET_ID || '',
+    GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
+    GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY || '',
+    GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '',
     DEFAULT_MONSTER: {
         id: 'monster_1',
         name: 'Dragon',
